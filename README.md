@@ -3,8 +3,8 @@
 **Surface correction weights for 3-D peridynamics (state-based LPS, bond-based, and correspondence NOSB-PD) with mesh quality diagnostics**
 
 [![CI](https://github.com/Hereon-InstituteMS/perifit/actions/workflows/ci.yml/badge.svg)](https://github.com/Hereon-InstituteMS/perifit/actions)
-[![PyPI version](https://img.shields.io/pypi/v/perifit.svg)](https://pypi.org/project/perifit/)
-[![Python](https://img.shields.io/pypi/pyversions/perifit.svg)](https://pypi.org/project/perifit/)
+[![PyPI version](https://img.shields.io/pypi/v/perifit?style=flat)](https://pypi.org/project/perifit/)
+[![Python](https://img.shields.io/pypi/pyversions/perifit?style=flat)](https://pypi.org/project/perifit/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 `perifit` computes optimised nodal influence weights that eliminate
