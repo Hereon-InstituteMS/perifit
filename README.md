@@ -29,8 +29,7 @@ neighbourhoods. This reduces their effective stiffness and causes
 displacement errors that do **not** vanish under mesh refinement at fixed
 horizon-to-spacing ratio *m = δ/Δx* — the so-called *surface effect*.
 
-`perifit` implements the operator-matching framework of
-Shojaei *et al.* (IJNME 2026) for state-based (LPS), bond-based
+`perifit` implements an operator-matching framework for state-based (LPS), bond-based
 (solid), and correspondence (NOSB-PD) models. For each node, a local overdetermined least-squares
 problem is solved to find a scalar influence weight *wᵢ* such that the
 truncated neighbourhood operators reproduce their full-sphere continuum
@@ -248,15 +247,6 @@ This is used to:
 | not given   | given       | horizon = m_ratio × dx |
 | given       | not given   | horizon used directly |
 | given       | given       | horizon used; **warning** if inconsistent with m_ratio × dx |
-
----
-
-## Reference
-
-A. Shojaei, A. Ongaro, A. Hermann, S. A. Silling, P. Trovalusci, C. J. Cyron,
-*Surface and boundary corrections in bond-based peridynamics using optimised
-nodal influence weights*, International Journal for Numerical Methods in
-Engineering, 2026.
 
 ---
 
