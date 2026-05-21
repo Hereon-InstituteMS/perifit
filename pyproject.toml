@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "perifit"
-version = "1.1.2"
+version = "2.0.0"
 description = "Surface correction weights for 3-D peridynamics (bond-based, state-based LPS, and correspondence NOSB-PD) with mesh quality diagnostics"
 readme = "README.md"
 license = { text = "MIT" }

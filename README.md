@@ -2,7 +2,7 @@
 
 **Surface correction weights for 3-D peridynamics (state-based LPS, bond-based, and correspondence NOSB-PD) with mesh quality diagnostics**
 
-[![CI](https://github.com/alhermann/perifit/actions/workflows/ci.yml/badge.svg)](https://github.com/alhermann/perifit/actions)
+[![CI](https://github.com/Hereon-InstituteMS/perifit/actions/workflows/ci.yml/badge.svg)](https://github.com/Hereon-InstituteMS/perifit/actions)
 [![PyPI version](https://img.shields.io/pypi/v/perifit.svg)](https://pypi.org/project/perifit/)
 [![Python](https://img.shields.io/pypi/pyversions/perifit.svg)](https://pypi.org/project/perifit/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -13,9 +13,9 @@ the **surface/boundary effect** in three-dimensional peridynamics.
 Supported models:
 | Model | CLI flag | Operator rows | Notes |
 |-------|----------|---------------|-------|
-| **OSB-PD** (ordinary state-based, LPS) | `--model osb_pd` | 109 | Poisson-unrestricted |
-| **BB-PD** (bond-based) | `--model bb_pd` | 54 | ν = 1/4 in 3D |
-| **NOSB-PD** (non-ordinary, correspondence) | `--model nosb_pd` | 36 | Material-independent |
+| **OSB-PD** (ordinary state-based, LPS) | `--model osb` | 109 | Poisson-unrestricted |
+| **BB-PD** (bond-based) | `--model bb` | 54 | ν = 1/4 in 3D |
+| **NOSB-PD** (non-ordinary, correspondence) | `--model nosb` | 36 | Material-independent |
 
 Provide any 3-D mesh → get per-node weights in formats ready for
 **Peridigm**, **PeriLab**, or generic CSV / DAT / VTK.
@@ -110,18 +110,15 @@ xs = np.arange(dx / 2, 1.0, dx)
 gx, gy, gz = np.meshgrid(xs, xs, xs, indexing='ij')
 coords = np.column_stack([gx.ravel(), gy.ravel(), gz.ravel()])
 
-# OSB-PD / LPS (default):
-weights = compute_weights(coords, model='osb_pd')
+# OSB-PD / LPS (default model is "bb"):
+volumes = np.full(len(coords), dx**3)
+weights = compute_weights(coords, volumes, horizon=3 * dx, model='osb')
 
 # BB-PD:
-weights = compute_weights(coords, model='bb_pd')
+weights = compute_weights(coords, volumes, horizon=3 * dx, model='bb')
 
 # NOSB-PD (material-independent):
-weights = compute_weights(coords, model='nosb_pd')
-
-# Or provide everything explicitly:
-volumes = np.full(len(coords), dx**3)
-weights = compute_weights(coords, volumes, horizon=3 * dx)
+weights = compute_weights(coords, volumes, horizon=3 * dx, model='nosb')
 
 # Export to any format
 write_weights(
@@ -139,7 +136,7 @@ from perifit import load_mesh, compute_weights, write_weights
 # Supported: .csv .dat .txt .npy .npz .vtk .vtu .exo .g .msh .inp
 coords, volumes = load_mesh('my_mesh.exo')
 
-weights = compute_weights(coords, volumes, m_ratio=3)
+weights = compute_weights(coords, volumes, horizon=3 * dx, model='osb')
 
 write_weights(coords, volumes, weights,
               outdir='./weights',
@@ -166,14 +163,14 @@ print(f"Removed {result.original_n - result.cleaned_n} nodes")
 ### Command-line interface
 
 ```bash
-# OSB-PD / LPS (default)
-perifit --mesh nodes.csv --model osb_pd
+# OSB-PD / LPS
+perifit --mesh nodes.csv --model osb
 
-# BB-PD
-perifit --mesh nodes.csv --model bb_pd
+# BB-PD (default)
+perifit --mesh nodes.csv --model bb
 
 # NOSB-PD (material-independent weights)
-perifit --mesh nodes.csv --model nosb_pd
+perifit --mesh nodes.csv --model nosb
 
 # Specify horizon-to-spacing ratio (default is 3)
 perifit --mesh nodes.csv --m-ratio 4 --output csv,vtk
