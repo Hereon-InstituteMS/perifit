@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "perifit"
+version = "1.1.2"
+description = "Surface correction weights for 3-D peridynamics (bond-based, state-based LPS, and correspondence NOSB-PD) with mesh quality diagnostics"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+keywords = [
+    "peridynamics", "surface correction", "LPS", "NOSB-PD", "correspondence",
+    "state-based peridynamics", "bond-based peridynamics",
+    "mesh quality", "meshfree", "nonlocal mechanics",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+vtk    = ["pyvista>=0.42"]
+exodus = ["netCDF4>=1.6"]
+hdf5   = ["h5py>=3.8"]
+gmsh   = ["meshio>=5.3"]
+all    = ["pyvista>=0.42", "netCDF4>=1.6", "h5py>=3.8", "meshio>=5.3"]
+dev    = ["pytest>=7", "pytest-cov"]
+
+[project.urls]
+Homepage   = "https://github.com/alhermann/perifit"
+Repository = "https://github.com/alhermann/perifit"
+Issues     = "https://github.com/alhermann/perifit/issues"
+
+[project.scripts]
+perifit = "perifit.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["perifit*"]
+
+[tool.setuptools.package-data]
+perifit = ["data/*.csv"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

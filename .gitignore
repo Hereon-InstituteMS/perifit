@@ -1,0 +1,25 @@
+.DS_Store
+.env
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.tox/
+.coverage
+.pytest_cache/
+htmlcov/
+*.vtk
+*.h5
+*.exo
+perifit_output/
+example_output/
+# Keep test mesh files (CSV and NPZ in examples/ are tracked)
+!examples/*.csv
+!examples/*.npz
