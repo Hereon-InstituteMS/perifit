@@ -39,9 +39,9 @@ all    = ["pyvista>=0.42", "netCDF4>=1.6", "h5py>=3.8", "meshio>=5.3"]
 dev    = ["pytest>=7", "pytest-cov"]
 
 [project.urls]
-Homepage   = "https://github.com/alhermann/perifit"
-Repository = "https://github.com/alhermann/perifit"
-Issues     = "https://github.com/alhermann/perifit/issues"
+Homepage   = "https://github.com/Hereon-InstituteMS/perifit"
+Repository = "https://github.com/Hereon-InstituteMS/perifit"
+Issues     = "https://github.com/Hereon-InstituteMS/perifit/issues"
 
 [project.scripts]
 perifit = "perifit.cli:main"
