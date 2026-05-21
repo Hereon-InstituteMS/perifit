@@ -566,12 +566,12 @@ class TestBranding:
     """Test version string and show_version function."""
 
     def test_version(self):
-        assert perifit.__version__ == "2.0.0"
+        assert perifit.__version__ == "2.0.1"
 
     def test_show_version(self, capsys):
         perifit.show_version()
         captured = capsys.readouterr()
-        assert "perifit v2.0.0" in captured.out
+        assert "perifit v2.0.1" in captured.out
         assert "Arman Shojaei" in captured.out
         assert "Alexander Hermann" in captured.out
         assert "Hereon" in captured.out
