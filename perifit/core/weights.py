@@ -79,7 +79,13 @@ def compute_weights(
 
     coords = np.asarray(coords, dtype=np.float64)
     volumes = np.asarray(volumes, dtype=np.float64)
+    if coords.ndim != 2 or coords.shape[1] != 3:
+        raise ValueError(f"coords must be shape (N, 3), got {coords.shape}")
     N = len(coords)
+    if volumes.shape != (N,):
+        raise ValueError(f"volumes must be shape ({N},), got {volumes.shape}")
+    if horizon <= 0:
+        raise ValueError(f"horizon must be positive, got {horizon}")
 
     if families is None:
         if verbose:
