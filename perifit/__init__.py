@@ -185,16 +185,6 @@ __all__ = [
     "full_disc_area",
     "full_disc_weighted_volume",
     "full_disc_shape_tensor_diag",
-    # 1-D API
-    "compute_weights_1d",
-    "build_families_1d",
-    "build_targets_bb_1d",
-    "build_local_system_bb_1d",
-    "segment_moment",
-    "segment_moment_over_r",
-    "segment_moment_over_r3",
-    "full_segment_length",
-    "full_segment_weighted_volume",
     # I/O and utilities
     "load_mesh",
     "write_weights",
