@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from scipy.sparse import csr_matrix, lil_matrix
 from scipy.sparse.linalg import spsolve
+from unittest.mock import patch
 
 from perifit import (
     build_families_1d,
@@ -19,6 +20,9 @@ from perifit import (
     segment_moment_over_r,
     segment_moment_over_r3,
 )
+
+
+_trapezoid = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
 
 
 def bar(dx, m, L=1.0):
@@ -56,6 +60,7 @@ class TestMoments1D:
         for p in (1, 3, 5):
             assert segment_moment(0.3, p) == 0.0
             assert segment_moment_over_r(0.3, p) == 0.0
+        for p in (3, 5):
             assert segment_moment_over_r3(0.3, p) == 0.0
 
     def test_closed_form_against_quadrature(self):
@@ -64,12 +69,12 @@ class TestMoments1D:
         xi = xi[np.abs(xi) > 1e-13]
         for p in (2, 4):
             assert segment_moment(delta, p) == pytest.approx(
-                np.trapezoid(xi ** p, xi), rel=1e-6)
+                _trapezoid(xi ** p, xi), rel=1e-6)
             assert segment_moment_over_r(delta, p) == pytest.approx(
-                np.trapezoid(xi ** p / np.abs(xi), xi), rel=1e-6)
+                _trapezoid(xi ** p / np.abs(xi), xi), rel=1e-6)
         for p in (4, 6):
             assert segment_moment_over_r3(delta, p) == pytest.approx(
-                np.trapezoid(xi ** p / np.abs(xi) ** 3, xi), rel=1e-6)
+                _trapezoid(xi ** p / np.abs(xi) ** 3, xi), rel=1e-6)
 
     def test_weighted_volume(self):
         delta = 0.25
@@ -79,6 +84,8 @@ class TestMoments1D:
     def test_singular_moments_raise(self):
         with pytest.raises(ValueError):
             segment_moment_over_r(0.3, 0)
+        with pytest.raises(ValueError):
+            segment_moment_over_r3(0.3, 1)
         with pytest.raises(ValueError):
             segment_moment_over_r3(0.3, 2)
 
@@ -138,6 +145,13 @@ class TestWeights1D:
             compute_weights_1d(x, vols, -1.0)
         with pytest.raises(ValueError):
             compute_weights_1d(x, vols[:-1], delta)
+
+    def test_raises_on_bicgstab_failure(self):
+        x, vols, delta = bar(0.05, 4)
+        with patch("perifit.core.weights_1d.bicgstab",
+                   return_value=(np.ones_like(x), -1)):
+            with pytest.raises(RuntimeError, match="info=-1"):
+                compute_weights_1d(x, vols, delta)
 
 
 class TestExample1:

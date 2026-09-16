@@ -70,6 +70,7 @@ def main():
         print(f"  {m:3d} {w[0]:9.3f} {w.min():8.3f} {interior:11.3f} "
               f"{m / (m + 1):9.3f}")
 
+    dx = 0.005
     x, vols = bar(dx)
     delta = 4 * dx
     w = compute_weights_1d(x, vols, delta)

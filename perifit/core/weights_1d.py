@@ -131,6 +131,8 @@ def compute_weights_1d(
             print(f"info={info} (illegal input)")
         print(f"  Weights: min={w.min():.4f}  max={w.max():.4f}  mean={w.mean():.4f}")
 
+    if info < 0:
+        raise RuntimeError(f"BiCGSTAB failed with info={info}.")
     if info > 0:
         warnings.warn(
             f"BiCGSTAB did not converge after {info} iterations.",

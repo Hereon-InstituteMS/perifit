@@ -38,11 +38,11 @@ def segment_moment_over_r(delta: float, p: int) -> float:
 
 def segment_moment_over_r3(delta: float, p: int) -> float:
     """int_{-delta}^{delta} x^p / |x|^3 dx.  Requires p > 2."""
+    if p <= 2:
+        raise ValueError("segment_moment_over_r3 is singular for p<=2")
     ang = _parity(p)
     if ang == 0.0:
         return 0.0
-    if p <= 2:
-        raise ValueError("segment_moment_over_r3 is singular for p<=2")
     return ang * delta ** (p - 2) / (p - 2)
 
 
