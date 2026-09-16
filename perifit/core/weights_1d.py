@@ -1,6 +1,7 @@
 """1-D global weight assembly: solve (I - A) w = b with BiCGSTAB."""
 from __future__ import annotations
 
+import inspect
 import warnings
 from typing import Sequence
 
@@ -11,6 +12,9 @@ from scipy.spatial import KDTree
 
 from .local_system_1d import build_local_system_bb_1d, NP_1D
 from .targets_1d import build_targets_bb_1d
+
+
+_BICGSTAB_TOL_KWARG = "rtol" if "rtol" in inspect.signature(bicgstab).parameters else "tol"
 
 
 def build_families_1d(
@@ -120,7 +124,7 @@ def compute_weights_1d(
         print("  Solving global system (BiCGSTAB) ...", end=" ", flush=True)
 
     w0 = np.ones(N, dtype=np.float64)
-    w, info = bicgstab(A.tocsr(), b, x0=w0, rtol=tol, maxiter=max_iter)
+    w, info = bicgstab(A.tocsr(), b, x0=w0, maxiter=max_iter, **{_BICGSTAB_TOL_KWARG: tol})
 
     if info < 0:
         raise RuntimeError(f"BiCGSTAB failed with info={info}.")
