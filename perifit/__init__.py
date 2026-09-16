@@ -20,6 +20,9 @@ Supported models (3-D):
 Supported models (2-D):
     - BB-PD via compute_weights_2d
 
+Supported models (1-D):
+    - BB-PD via compute_weights_1d
+
 Usage
 -----
     import perifit
@@ -83,6 +86,20 @@ from .core.moments_2d import (
 from .core.targets_2d import build_targets_bb_2d
 from .core.local_system_2d import build_local_system_bb_2d
 from .core.weights_2d import compute_weights_2d, build_families_2d
+
+# ---------------------------------------------------------------------------
+# 1-D public API
+# ---------------------------------------------------------------------------
+from .core.moments_1d import (
+    segment_moment,
+    segment_moment_over_r,
+    segment_moment_over_r3,
+    full_segment_length,
+    full_segment_weighted_volume,
+)
+from .core.targets_1d import build_targets_bb_1d
+from .core.local_system_1d import build_local_system_bb_1d
+from .core.weights_1d import compute_weights_1d, build_families_1d
 
 # ---------------------------------------------------------------------------
 # Existing package modules (mesh I/O, quality diagnostics, etc.)

@@ -20,6 +20,9 @@ Supported models:
 Provide any 3-D mesh → get per-node weights in formats ready for
 **Peridigm**, **PeriLab**, or generic CSV / DAT / VTK.
 
+Lower-dimensional BB-PD discretisations are supported through
+`compute_weights_2d` and `compute_weights_1d`.
+
 ---
 
 ## Background
