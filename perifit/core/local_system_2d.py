@@ -52,8 +52,23 @@ def _solve_local_2d(
     n_F: int,
     tikhonov_rel: float,
     tikhonov_abs: float,
+    row_normalize: bool = True,
 ) -> tuple[float, np.ndarray]:
-    """Per-row normalised, Tikhonov-regularised pseudoinverse solve."""
+    """Local least-squares solve of the stacked collocation/operator system.
+
+    row_normalize=True : per-row normalised, Tikhonov-regularised pseudoinverse (previous behaviour).
+    row_normalize=False: plain Moore-Penrose pseudoinverse of the unscaled stacked matrix, i.e.
+        a = pinv([M_c; M_x; M_y; M_E]) [w; d*; d*; e*] as in Eq. (50) of the IJNME paper and the
+        reference Mathematica implementation. The relative weighting of the collocation,
+        derivative and energy blocks is then set by their physical scaling (energy rows and
+        targets carry the micromodulus c_bond), which is what reproduces the published results.
+    """
+    if not row_normalize:
+        Mplus = np.linalg.pinv(ML)
+        beta_i = float(Mplus[0, n_F:] @ targets)
+        coupling = Mplus[0, :n_F].copy()
+        return beta_i, coupling
+
     nr = np.linalg.norm(ML, axis=1)
     valid = nr > 1e-20
     ML_norm = ML.copy()
@@ -93,6 +108,7 @@ def build_local_system_bb_2d(
     c_bond: float = 1.0,
     tikhonov_rel: float = 1e-8,
     tikhonov_abs: float = 1e-12,
+    row_normalize: bool = True,
 ) -> tuple[float, np.ndarray] | None:
     """Build 2D BB-PD local system (20 operator rows: 10 derivative + 10 energy).
 
@@ -103,7 +119,8 @@ def build_local_system_bb_2d(
     delta : horizon radius.
     d_star : (10,) derivative targets.
     e_star : (10,) energy targets.
-    c_bond : micromodulus constant (energy rows are scaled by c_bond).
+    c_bond : micromodulus constant (energy rows and targets are scaled by c_bond).
+    row_normalize : see _solve_local_2d.
     """
     n_F = len(xi_bonds)
     if n_F < NP_2D:
@@ -146,4 +163,4 @@ def build_local_system_bb_2d(
             ML[row, :] = (c_bond * 0.25 * dph[:, k_idx] ** 2 * xi_ell_sq_over_r3 * volumes) @ p_eff
 
     targets = np.concatenate([d_star, c_bond * e_star])
-    return _solve_local_2d(ML, targets, n_F, tikhonov_rel, tikhonov_abs)
+    return _solve_local_2d(ML, targets, n_F, tikhonov_rel, tikhonov_abs, row_normalize)

@@ -32,6 +32,8 @@ def compute_weights_2d(
     tikhonov_rel: float = 1e-8,
     tikhonov_abs: float = 1e-12,
     verbose: bool = False,
+    row_normalize: bool = True,
+    c_bond: float | None = None,
 ) -> np.ndarray:
     """Compute surface-correction nodal weights for a 2-D BB-PD discretisation.
 
@@ -44,6 +46,13 @@ def compute_weights_2d(
     tol, max_iter : BiCGSTAB controls.
     tikhonov_rel, tikhonov_abs : local-LS regularisation.
     verbose : print progress.
+    row_normalize : True (default, previous behaviour) solves each local system with per-row
+        normalisation and Tikhonov regularisation; False uses the plain pseudoinverse of the
+        unscaled stacked system (Eq. (50) of the paper / reference implementation), which is
+        required to reproduce the published BB-PD cantilever results (Example 2).
+    c_bond : micromodulus used to scale the energy rows and targets. Only relevant for
+        row_normalize=False; defaults to the unit-modulus plane-stress value 9 / (pi delta^3)
+        (E = 1, nu = 1/3), i.e. c = 6E / (pi delta^3 (1 - nu)).
 
     Returns
     -------
@@ -63,6 +72,8 @@ def compute_weights_2d(
             print(f"done.  avg n_F={avg:.1f}")
 
     d_star, e_star = build_targets_bb_2d(horizon)
+    if c_bond is None:
+        c_bond = 9.0 / (np.pi * horizon**3) if not row_normalize else 1.0
 
     if verbose:
         print("  Assembling global weight system ...", end=" ", flush=True)
@@ -80,9 +91,12 @@ def compute_weights_2d(
             continue
         xi_bonds = coords[nbrs] - coords[i]
         vol_nbrs = volumes[nbrs]
+        # keyword arguments: tikhonov_rel/abs were previously passed positionally into the
+        # c_bond/tikhonov_rel slots of build_local_system_bb_2d
         result = build_local_system_bb_2d(
             xi_bonds, vol_nbrs, horizon, d_star, e_star,
-            tikhonov_rel, tikhonov_abs)
+            c_bond=c_bond, tikhonov_rel=tikhonov_rel, tikhonov_abs=tikhonov_abs,
+            row_normalize=row_normalize)
         if result is None:
             A[i, i] = 1.0
             b[i] = 1.0
