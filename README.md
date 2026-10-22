@@ -232,10 +232,14 @@ in your PD discretisation with `w̄ᵢⱼ`. The Peridigm and PeriLab
 output files include a YAML template showing exactly where to hook in
 the field.
 
-**Match the solver's discrete operator.** The weights correct the discrete
-sum that the solver actually evaluates. If the solver scales neighbour
-volumes near the horizon edge (partial volumes), compute the weights with
-the same scaling, e.g. for the common linear partial-volume factor
+**Do not apply a partial-volume factor in addition.** The weights already
+correct the discrete sum near the horizon edge (for a cubic lattice with
+δ = 3Δx the bulk weight is about 0.86 because full neighbour volumes
+overestimate the ball integral). Use `w̄ᵢⱼ` in place of the solver's
+partial-volume factor (β), not on top of it: weights computed with full
+volumes but combined with β leave the body about 25-30 % too soft.
+If a solver must keep its partial volumes, compute the weights for that
+operator instead:
 
 ```python
 from perifit import compute_weights, partial_volume_factor
@@ -243,12 +247,11 @@ w = compute_weights(coords, volumes, delta, model="bb",
                     bond_volume_factor=partial_volume_factor(delta, dx))
 ```
 
-Weights computed with full volumes but applied in a solver with partial
-volumes do not remove the surface effect and change the bulk stiffness
-(for a cubic lattice with δ = 3Δx the bulk weight is about 0.86 with full
-volumes and 1.12 with partial volumes). Likewise, pass precomputed
-`families` if the solver bonds only particles of the same body or breaks
-bonds across pre-cracks initially (notches are geometric surfaces).
+Both variants are consistent; on a thin bond-based plate (6 layers) the
+first gives bending 0.95, stretch 0.99, the second 1.01 and 1.06 of the
+continuum stiffness. Pass precomputed `families` if the solver bonds only
+particles of the same body or breaks bonds across pre-cracks initially
+(notches are geometric surfaces).
 
 **Fracture.** The weights belong to the reference configuration and are
 normally kept fixed during a simulation: crack faces that open later are
