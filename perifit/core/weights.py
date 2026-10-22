@@ -9,7 +9,7 @@ Authors: Arman Shojaei & Alexander Hermann
 from __future__ import annotations
 
 import warnings
-from typing import Sequence
+from typing import Callable, Sequence
 
 import numpy as np
 from scipy.sparse import lil_matrix
@@ -24,7 +24,22 @@ from .local_system import (
 from .targets import build_targets_bb, build_targets_osb, build_targets_nosb
 
 
-_MODELS = ("bb", "osb")
+_MODELS = ("bb", "osb", "nosb")
+
+
+def partial_volume_factor(horizon: float, dx: float) -> Callable[[np.ndarray], np.ndarray]:
+    """Partial-volume factor of a neighbour at bond length r (linear in the shell |r - delta| < dx/2):
+    1 for r <= delta - dx/2, (delta + dx/2 - r) / dx up to delta + dx/2, 0 beyond.
+
+    Pass it as ``bond_volume_factor`` to :func:`compute_weights` when the PD solver scales the
+    neighbour volumes in this way (e.g. 4C, Peridigm-style partial volumes), so that the weights
+    correct the solver's actual discrete operator.
+    """
+    def factor(r: np.ndarray) -> np.ndarray:
+        r = np.asarray(r, dtype=np.float64)
+        return np.where(r <= horizon - 0.5 * dx, 1.0,
+                        np.clip((horizon + 0.5 * dx - r) / dx, 0.0, 1.0))
+    return factor
 
 
 def build_families(
@@ -47,6 +62,7 @@ def compute_weights(
     tikhonov_rel: float = 1e-8,
     tikhonov_abs: float = 1e-12,
     verbose: bool = False,
+    bond_volume_factor: Callable[[np.ndarray], np.ndarray] | None = None,
 ) -> np.ndarray:
     """Compute surface-correction nodal weights for a 3-D PD discretisation.
 
@@ -55,11 +71,18 @@ def compute_weights(
     coords : (N, 3) array of nodal positions.
     volumes : (N,) cell volumes.
     horizon : peridynamic horizon delta.
-    model : "bb" (bond-based, kernel q=3) or "osb" (state-based LPS, kernel q=2).
-    families : optional precomputed neighbour lists (list of lists of int).
+    model : "bb" (bond-based, kernel q=3), "osb" (state-based LPS, kernel q=2) or
+        "nosb" (correspondence, material-independent rows).
+    families : optional precomputed neighbour lists (list of lists of int), e.g. to
+        restrict bonds to one body or to exclude bonds crossing pre-cracks.
     tol, max_iter : BiCGSTAB convergence controls.
     tikhonov_rel, tikhonov_abs : local-LS regularisation parameters.
     verbose : print progress information.
+    bond_volume_factor : optional callable f(r) scaling the neighbour volume of each
+        bond by its length r (see :func:`partial_volume_factor`). The weights must be
+        computed for the same discrete operator as the PD solver uses: weights of an
+        operator with full volumes applied in a solver with partial volumes do not
+        correct the surface effect (and change the bulk stiffness).
 
     Returns
     -------
@@ -125,6 +148,8 @@ def compute_weights(
             continue
         xi_bonds = coords[nbrs] - coords[i]
         vol_nbrs = volumes[nbrs]
+        if bond_volume_factor is not None:
+            vol_nbrs = vol_nbrs * bond_volume_factor(np.linalg.norm(xi_bonds, axis=1))
         result = local_call(xi_bonds, vol_nbrs)
         if result is None:
             A[i, i] = 1.0
@@ -155,6 +180,10 @@ def compute_weights(
             print(f"info={info} (illegal input)")
         print(f"  Weights: min={w.min():.4f}  max={w.max():.4f}  mean={w.mean():.4f}")
 
+    if info < 0:
+        raise RuntimeError(
+            f"BiCGSTAB failed (info={info}: illegal input or breakdown); "
+            "the weights are not valid.")
     if info > 0:
         warnings.warn(
             f"BiCGSTAB did not converge after {info} iterations.",

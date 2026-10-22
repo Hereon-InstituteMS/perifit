@@ -33,7 +33,7 @@ from .local_system import (
 )
 
 # 3-D weights (public API)
-from .weights import compute_weights, build_families
+from .weights import compute_weights, build_families, partial_volume_factor
 
 # 2-D moments
 from .moments_2d import (
@@ -57,6 +57,7 @@ from .weights_2d import compute_weights_2d, build_families_2d
 __all__ = [
     # 3-D main API
     "compute_weights",
+    "partial_volume_factor",
     "build_families",
     # 3-D targets
     "build_targets_bb",

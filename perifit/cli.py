@@ -43,6 +43,9 @@ _MODEL_MAP = {
     'osb_pd': 'osb',
     'bond_based': 'bb',
     'state_based': 'osb',
+    'nosb': 'nosb',
+    'nosb_pd': 'nosb',
+    'correspondence': 'nosb',
 }
 
 
@@ -104,10 +107,11 @@ Examples
 
     # Model selection
     p.add_argument('--model', default='osb',
-                   choices=['osb', 'bb', 'osb_pd', 'bb_pd',
-                            'state_based', 'bond_based'],
-                   help='PD model: osb (LPS/state-based), bb (bond-based). '
-                        'Legacy aliases: osb_pd, bb_pd, state_based, bond_based. '
+                   choices=['osb', 'bb', 'nosb', 'osb_pd', 'bb_pd', 'nosb_pd',
+                            'state_based', 'bond_based', 'correspondence'],
+                   help='PD model: osb (LPS/state-based), bb (bond-based), '
+                        'nosb (correspondence). Legacy aliases: osb_pd, bb_pd, '
+                        'nosb_pd, state_based, bond_based, correspondence. '
                         'Default: osb.')
 
     # Horizon / discretisation
@@ -193,7 +197,7 @@ def main(argv=None):
 
     # --- Demo mode ---
     if args.demo:
-        model_label = 'BB-PD' if model == 'bb' else 'OSB-PD'
+        model_label = {'bb': 'BB-PD', 'osb': 'OSB-PD', 'nosb': 'NOSB-PD'}[model]
         print("=" * 60)
         print("perifit  --  built-in demo (1000-node cube)")
         print("  Mesh   : structured [0,1]^3, dx=0.1, 1000 nodes")
@@ -262,8 +266,11 @@ def main(argv=None):
     # --- Clean ---
     if args.clean:
         from perifit.quality.cleaning import clean_mesh
+        # the weights depend on the neighbourhoods: recompute them for the cleaned mesh
         result = clean_mesh(coords, volumes, weights,
-                            threshold_sigma=args.threshold_sigma)
+                            threshold_sigma=args.threshold_sigma,
+                            horizon=horizon, model=model,
+                            tol=args.tol, max_iter=args.max_iter)
         print(f"\nCleaning: {result.original_n} -> {result.cleaned_n} nodes "
               f"({result.original_n - result.cleaned_n} removed)")
         coords = result.coords
@@ -277,7 +284,7 @@ def main(argv=None):
         outdir=args.outdir,
         stem=args.stem,
         formats=formats,
-        horizon=weights.mean(),  # informational only
+        horizon=horizon,
     )
 
     print("\nOutput files:")

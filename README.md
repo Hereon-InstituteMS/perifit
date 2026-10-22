@@ -112,7 +112,7 @@ xs = np.arange(dx / 2, 1.0, dx)
 gx, gy, gz = np.meshgrid(xs, xs, xs, indexing='ij')
 coords = np.column_stack([gx.ravel(), gy.ravel(), gz.ravel()])
 
-# OSB-PD / LPS (default model is "bb"):
+# OSB-PD / LPS (the default model of compute_weights is "bb"):
 volumes = np.full(len(coords), dx**3)
 weights = compute_weights(coords, volumes, horizon=3 * dx, model='osb')
 
@@ -157,18 +157,20 @@ weights = compute_weights(coords, volumes, horizon=delta)
 diag = diagnose_weights(weights, threshold_sigma=2.0)
 print(diag.summary)
 
-# Clean: remove flagged nodes
-result = clean_mesh(coords, volumes, weights, threshold_sigma=2.0)
+# Clean: remove flagged nodes and recompute the weights of the cleaned mesh
+# (removing nodes changes the neighbourhoods; without horizon the returned
+# weights belong to the original mesh and a warning is issued)
+result = clean_mesh(coords, volumes, weights, threshold_sigma=2.0, horizon=delta)
 print(f"Removed {result.original_n - result.cleaned_n} nodes")
 ```
 
 ### Command-line interface
 
 ```bash
-# OSB-PD / LPS
+# OSB-PD / LPS (CLI default)
 perifit --mesh nodes.csv --model osb
 
-# BB-PD (default)
+# BB-PD
 perifit --mesh nodes.csv --model bb
 
 # NOSB-PD (material-independent weights)
@@ -229,6 +231,31 @@ Replace every occurrence of the unit influence function `ω(ξ) = 1`
 in your PD discretisation with `w̄ᵢⱼ`. The Peridigm and PeriLab
 output files include a YAML template showing exactly where to hook in
 the field.
+
+**Match the solver's discrete operator.** The weights correct the discrete
+sum that the solver actually evaluates. If the solver scales neighbour
+volumes near the horizon edge (partial volumes), compute the weights with
+the same scaling, e.g. for the common linear partial-volume factor
+
+```python
+from perifit import compute_weights, partial_volume_factor
+w = compute_weights(coords, volumes, delta, model="bb",
+                    bond_volume_factor=partial_volume_factor(delta, dx))
+```
+
+Weights computed with full volumes but applied in a solver with partial
+volumes do not remove the surface effect and change the bulk stiffness
+(for a cubic lattice with δ = 3Δx the bulk weight is about 0.86 with full
+volumes and 1.12 with partial volumes). Likewise, pass precomputed
+`families` if the solver bonds only particles of the same body or breaks
+bonds across pre-cracks initially (notches are geometric surfaces).
+
+**Fracture.** The weights belong to the reference configuration and are
+normally kept fixed during a simulation: crack faces that open later are
+not corrected (within one horizon of a new face the stiffness is that of an
+uncorrected surface), which is consistent with calibrating the critical
+stretch with the same weights. Recomputing during a run would change the
+stiffness of loaded bonds and hence the stored elastic energy.
 
 ---
 
