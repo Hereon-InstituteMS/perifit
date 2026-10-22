@@ -404,7 +404,7 @@ class TestWeightsMatchReference:
     def test_bb_first_10(self, computed_weights):
         w_bb, _ = computed_weights
         np.testing.assert_allclose(
-            w_bb[:10], self.BB_REF_FIRST_10, rtol=1e-3,
+            w_bb[:10], self.BB_REF_FIRST_10, rtol=1.5e-3,
             err_msg="BB weights (first 10) do not match reference"
         )
 

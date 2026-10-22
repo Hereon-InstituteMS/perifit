@@ -70,7 +70,7 @@ from .core.local_system import (
     build_local_system_osb,
     build_local_system_nosb,
 )
-from .core.weights import compute_weights, build_families
+from .core.weights import compute_weights, build_families, partial_volume_factor
 
 # ---------------------------------------------------------------------------
 # 2-D public API
@@ -158,6 +158,7 @@ def show_version() -> None:
 __all__ = [
     # Main 3-D API
     "compute_weights",
+    "partial_volume_factor",
     "build_families",
     # 3-D targets
     "build_targets_bb",

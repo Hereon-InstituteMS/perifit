@@ -112,7 +112,7 @@ xs = np.arange(dx / 2, 1.0, dx)
 gx, gy, gz = np.meshgrid(xs, xs, xs, indexing='ij')
 coords = np.column_stack([gx.ravel(), gy.ravel(), gz.ravel()])
 
-# OSB-PD / LPS (default model is "bb"):
+# OSB-PD / LPS (the default model of compute_weights is "bb"):
 volumes = np.full(len(coords), dx**3)
 weights = compute_weights(coords, volumes, horizon=3 * dx, model='osb')
 
@@ -157,18 +157,20 @@ weights = compute_weights(coords, volumes, horizon=delta)
 diag = diagnose_weights(weights, threshold_sigma=2.0)
 print(diag.summary)
 
-# Clean: remove flagged nodes
-result = clean_mesh(coords, volumes, weights, threshold_sigma=2.0)
+# Clean: remove flagged nodes and recompute the weights of the cleaned mesh
+# (removing nodes changes the neighbourhoods; without horizon the returned
+# weights belong to the original mesh and a warning is issued)
+result = clean_mesh(coords, volumes, weights, threshold_sigma=2.0, horizon=delta)
 print(f"Removed {result.original_n - result.cleaned_n} nodes")
 ```
 
 ### Command-line interface
 
 ```bash
-# OSB-PD / LPS
+# OSB-PD / LPS (CLI default)
 perifit --mesh nodes.csv --model osb
 
-# BB-PD (default)
+# BB-PD
 perifit --mesh nodes.csv --model bb
 
 # NOSB-PD (material-independent weights)
@@ -229,6 +231,34 @@ Replace every occurrence of the unit influence function `ω(ξ) = 1`
 in your PD discretisation with `w̄ᵢⱼ`. The Peridigm and PeriLab
 output files include a YAML template showing exactly where to hook in
 the field.
+
+**Do not apply a partial-volume factor in addition.** The weights already
+correct the discrete sum near the horizon edge (for a cubic lattice with
+δ = 3Δx the bulk weight is about 0.86 because full neighbour volumes
+overestimate the ball integral). Use `w̄ᵢⱼ` in place of the solver's
+partial-volume factor (β), not on top of it: weights computed with full
+volumes but combined with β leave the body about 25-30 % too soft.
+If a solver must keep its partial volumes, compute the weights for that
+operator instead:
+
+```python
+from perifit import compute_weights, partial_volume_factor
+w = compute_weights(coords, volumes, delta, model="bb",
+                    bond_volume_factor=partial_volume_factor(delta, dx))
+```
+
+Both variants are consistent; on a thin bond-based plate (6 layers) the
+first gives bending 0.95, stretch 0.99, the second 1.01 and 1.06 of the
+continuum stiffness. Pass precomputed `families` if the solver bonds only
+particles of the same body or breaks bonds across pre-cracks initially
+(notches are geometric surfaces).
+
+**Fracture.** The weights belong to the reference configuration and are
+normally kept fixed during a simulation: crack faces that open later are
+not corrected (within one horizon of a new face the stiffness is that of an
+uncorrected surface), which is consistent with calibrating the critical
+stretch with the same weights. Recomputing during a run would change the
+stiffness of loaded bonds and hence the stored elastic energy.
 
 ---
 
