@@ -56,7 +56,10 @@ def _solve_local_2d(
     tikhonov_abs: float,
 ) -> tuple[float, np.ndarray]:
     """Per-row normalised, Tikhonov-regularised solve (see :mod:`perifit.core._lsq`)."""
-    return solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs)
+    # rows (direction, test k): k = 0, 1 degree 1, k = 2..4 degree 2; 10 derivative + 10 energy
+    groups = [[10 * b + 5 * a + k for a in range(2) for k in ks]
+              for b in range(2) for ks in ((0, 1), (2, 3, 4))]
+    return solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs, groups)
 
 
 def build_local_system_bb_2d(
@@ -91,8 +94,8 @@ def build_local_system_bb_2d(
     r2 = np.einsum('ij,ij->i', xi_bonds, xi_bonds)
     r = np.sqrt(r2)
     r3 = r2 * r
-    r3_safe = np.where(r3 > 1e-30, r3, 1.0)
-    mask = r3 > 1e-30
+    r3_safe = np.where(r3 > 0.0, r3, 1.0)
+    mask = r3 > 0.0
 
     p_arr = _poly_basis_2d(xi_bonds, delta)
     # dphi = p(xi) - p(0), dropping the constant = p_arr[:, 1:] (delta-scaled)

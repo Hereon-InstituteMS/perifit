@@ -12,9 +12,9 @@ from .targets_1d import build_targets_bb_1d
 
 
 def build_families_1d(
-    coords: np.ndarray, horizon: float, tol: float = 1e-12
+    coords: np.ndarray, horizon: float, tol: float | None = None
 ) -> list[list[int]]:
-    """Per-node neighbour lists within ``horizon + tol`` (alias of :func:`build_families`)."""
+    """Per-node neighbour lists within the horizon (alias of :func:`build_families`)."""
     return build_families(np.asarray(coords, dtype=np.float64).reshape(-1), horizon, tol)
 
 

@@ -7,7 +7,7 @@ Two equivalent descriptions of the same peridynamic bond set are used:
 * **bonds** -- one row ``(i, j)`` with ``i < j`` per bond, sorted
   lexicographically; used by per-bond quantities (bond weights, solvers).
 
-Both use the same cutoff, so ``families_from_bonds(build_bonds(...))`` and
+Both use the same (relative) cutoff, so ``families_from_bonds(build_bonds(...))`` and
 ``build_families(...)`` describe identical neighbourhoods.
 """
 from __future__ import annotations
@@ -15,9 +15,16 @@ from __future__ import annotations
 import numpy as np
 from scipy.spatial import cKDTree
 
-#: Absolute tolerance added to the horizon so that nodes lying exactly on the
-#: horizon (common on regular grids) are included despite round-off.
-HORIZON_TOL = 1e-12
+#: Relative tolerance on the horizon: nodes at distance <= horizon * (1 + HORIZON_RTOL)
+#: are neighbours, so nodes lying exactly on the horizon (common on regular grids)
+#: are included despite round-off -- identically in every unit system.
+HORIZON_RTOL = 1e-10
+
+
+def _cutoff(horizon: float, tol: float | None) -> float:
+    if horizon <= 0:
+        raise ValueError(f"horizon must be positive, got {horizon}")
+    return horizon * (1.0 + HORIZON_RTOL) if tol is None else horizon + tol
 
 
 def _as_points(coords: np.ndarray) -> np.ndarray:
@@ -29,10 +36,14 @@ def _as_points(coords: np.ndarray) -> np.ndarray:
     return pts
 
 
-def build_bonds(coords: np.ndarray, horizon: float, tol: float = HORIZON_TOL) -> np.ndarray:
-    """All bonds within the horizon as an ``(Nb, 2)`` int array, ``i < j``, sorted."""
+def build_bonds(coords: np.ndarray, horizon: float, tol: float | None = None) -> np.ndarray:
+    """All bonds within the horizon as an ``(Nb, 2)`` int array, ``i < j``, sorted.
+
+    ``tol=None`` (default) uses the relative cutoff ``horizon * (1 + HORIZON_RTOL)``;
+    an explicit ``tol`` gives the absolute cutoff ``horizon + tol``.
+    """
     pts = _as_points(coords)
-    pairs = cKDTree(pts).query_pairs(horizon + tol, output_type="ndarray")
+    pairs = cKDTree(pts).query_pairs(_cutoff(horizon, tol), output_type="ndarray")
     if len(pairs) == 0:
         return np.zeros((0, 2), dtype=np.int64)
     pairs = np.sort(pairs.astype(np.int64), axis=1)
@@ -51,7 +62,7 @@ def families_from_bonds(n_nodes: int, bonds: np.ndarray) -> list[list[int]]:
     return [j[starts[k]:starts[k + 1]].tolist() for k in range(n_nodes)]
 
 
-def build_families(coords: np.ndarray, horizon: float, tol: float = HORIZON_TOL) -> list[list[int]]:
-    """Per-node neighbour lists within ``horizon + tol`` (self excluded)."""
+def build_families(coords: np.ndarray, horizon: float, tol: float | None = None) -> list[list[int]]:
+    """Per-node neighbour lists within the horizon (self excluded); see :func:`build_bonds`."""
     pts = _as_points(coords)
     return families_from_bonds(len(pts), build_bonds(pts, horizon, tol))

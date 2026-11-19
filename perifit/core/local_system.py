@@ -52,15 +52,31 @@ def _dphi_all(xi: np.ndarray) -> np.ndarray:
     ])
 
 
+# Operator rows are ordered (direction, test k) with tests k = 0..2 of degree 1
+# and k = 3..8 of degree 2.  Rows of one block and one degree scale alike with
+# the length unit and form one round-off group (see perifit.core._lsq).
+_DEG = ((0, 1, 2), (3, 4, 5, 6, 7, 8))
+
+
+def _groups(n_blocks: int) -> list[list[int]]:
+    return [[27 * b + 9 * a + k for a in range(3) for k in ks]
+            for b in range(n_blocks) for ks in _DEG]
+
+
+_GROUPS_DERIV_ENERGY = _groups(2)   # BB, OSB: 27 derivative + 27 energy rows
+_GROUPS_DERIV_ONLY = _groups(1)     # NOSB:    27 gradient rows
+
+
 def _solve_local(
     ML: np.ndarray,
     targets: np.ndarray,
     n_F: int,
     tikhonov_rel: float,
     tikhonov_abs: float,
+    row_groups=None,
 ) -> tuple[float, np.ndarray]:
     """Per-row normalised, Tikhonov-regularised solve (see :mod:`perifit.core._lsq`)."""
-    return solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs)
+    return solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs, row_groups)
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +101,8 @@ def build_local_system_bb(
     r2 = np.einsum('ij,ij->i', xi_bonds, xi_bonds)
     r = np.sqrt(r2)
     r3 = r2 * r
-    r3_safe = np.where(r3 > 1e-30, r3, 1.0)
-    mask = r3 > 1e-30
+    r3_safe = np.where(r3 > 0.0, r3, 1.0)
+    mask = r3 > 0.0
 
     p_arr = _poly_basis(xi_bonds, delta)
     dph = _dphi_all(xi_bonds)
@@ -109,7 +125,7 @@ def build_local_system_bb(
             ML[row, :] = (0.25 * dph[:, k_idx] ** 2 * xi_ell_sq_over_r3 * volumes) @ p_eff
 
     targets = np.concatenate([d_star, e_star])
-    return _solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs)
+    return _solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs, _GROUPS_DERIV_ENERGY)
 
 
 # ---------------------------------------------------------------------------
@@ -132,8 +148,8 @@ def build_local_system_osb(
     ML = np.zeros((n_rows, NP))
 
     r2 = np.einsum('ij,ij->i', xi_bonds, xi_bonds)
-    r2_safe = np.where(r2 > 1e-30, r2, 1.0)
-    mask = r2 > 1e-30
+    r2_safe = np.where(r2 > 0.0, r2, 1.0)
+    mask = r2 > 0.0
 
     p_arr = _poly_basis(xi_bonds, delta)
     dph = _dphi_all(xi_bonds)
@@ -156,7 +172,7 @@ def build_local_system_osb(
             ML[row, :] = (dph[:, k_idx] ** 2 * xi_ell_sq_over_r2 * volumes) @ p_eff
 
     targets = np.concatenate([d_star, e_star])
-    return _solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs)
+    return _solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs, _GROUPS_DERIV_ENERGY)
 
 
 # ---------------------------------------------------------------------------
@@ -190,4 +206,4 @@ def build_local_system_nosb(
             row = n_F + b * 9 + k_idx
             ML[row, :] = (xi_bonds[:, b] * dph[:, k_idx] * volumes) @ p_eff
 
-    return _solve_local(ML, n_star, n_F, tikhonov_rel, tikhonov_abs)
+    return _solve_local(ML, n_star, n_F, tikhonov_rel, tikhonov_abs, _GROUPS_DERIV_ONLY)

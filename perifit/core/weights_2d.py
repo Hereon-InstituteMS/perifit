@@ -13,8 +13,8 @@ from .targets_2d import build_targets_bb_2d
 __all__ = ["compute_weights_2d", "build_families_2d"]
 
 
-def build_families_2d(coords: np.ndarray, horizon: float, tol: float = 1e-12) -> list[list[int]]:
-    """Per-node neighbour lists within ``horizon + tol`` (alias of :func:`build_families`)."""
+def build_families_2d(coords: np.ndarray, horizon: float, tol: float | None = None) -> list[list[int]]:
+    """Per-node neighbour lists within the horizon (alias of :func:`build_families`)."""
     return build_families(coords, horizon, tol)
 
 
@@ -44,6 +44,7 @@ def compute_weights_2d(
 
     def local(i: int, nbrs: np.ndarray):
         return build_local_system_bb_2d(coords[nbrs] - coords[i], volumes[nbrs], horizon,
-                                        d_star, e_star, tikhonov_rel, tikhonov_abs)
+                                        d_star, e_star, tikhonov_rel=tikhonov_rel,
+                                        tikhonov_abs=tikhonov_abs)
 
     return solve_weight_system(N, families, local, tol=tol, max_iter=max_iter, verbose=verbose)
