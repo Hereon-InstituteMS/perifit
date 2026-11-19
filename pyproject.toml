@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "perifit"
-version = "2.0.1"
-description = "Surface correction weights for 3-D peridynamics (bond-based, state-based LPS, and correspondence NOSB-PD) with mesh quality diagnostics"
-readme = "README.md"
+version = "3.0.0"
+description = "Surface corrections for peridynamics: nodal weights and bond weights for 1-D, 2-D and 3-D models"
+readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "MIT" }
 requires-python = ">=3.9"
 keywords = [
-    "peridynamics", "surface correction", "LPS", "NOSB-PD", "correspondence",
-    "state-based peridynamics", "bond-based peridynamics",
-    "mesh quality", "meshfree", "nonlocal mechanics",
+    "peridynamics", "surface correction", "surface effect", "bond-based peridynamics",
+    "state-based peridynamics", "LPS", "nodal weights", "bond weights",
+    "meshfree", "nonlocal mechanics",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

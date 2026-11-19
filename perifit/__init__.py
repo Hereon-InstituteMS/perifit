@@ -1,136 +1,110 @@
 """
-perifit -- Peridynamic surface correction via optimised nodal influence weights.
-==============================================================================
+perifit -- surface corrections for peridynamics.
+================================================
+
+Nodes near free surfaces, cracks and voids have truncated horizons, which
+makes peridynamic models artificially soft there and spoils convergence.
+perifit computes, once and purely from the geometry, corrections that restore
+full-horizon behaviour.  Two methods are offered; the user picks one:
+
+* **nodal weights** -- one weight per node; a bond (i, j) is scaled by
+  ``(w_i + w_j) / 2``.  Compact; works with per-node solvers.
+* **bond weights** -- one weight per bond.  More accurate and robust; breaking
+  a bond is just setting its weight to zero.
+
+Quick start
+-----------
+    import perifit
+
+    # one multiplier per bond, whichever method is chosen
+    corr = perifit.surface_correction(coords, volumes, horizon, method="bond")
+    for (i, j), f in zip(corr.bonds, corr.factor):
+        ...  # multiply the stiffness / force of bond (i, j) by f
+
+    w = perifit.nodal_weights(coords, volumes, horizon)          # (N,)
+    bonds, beta = perifit.bond_weights(coords, volumes, horizon)  # (Nb, 2), (Nb,)
 
 Authors:  Arman Shojaei & Alexander Hermann
           Institute of Material Systems Modeling,
           Helmholtz-Zentrum Hereon, Geesthacht, Germany.
-
-Purpose
--------
-Compute per-node scalar influence weights w_i that restore derivative and
-energy consistency of the discrete PD operators near free surfaces, cracks,
-and voids.  Each bond (i, j) is then scaled by the symmetric factor
-(w_i + w_j) / 2, preserving pairwise reciprocity and global stiffness symmetry.
-
-Supported models (3-D):
-    - "bb"  : Bond-Based PD (PMB / linearised BB), kernel exponent q = 3
-    - "osb" : Ordinary State-Based PD (LPS), kernel exponent q = 2
-
-Supported models (2-D):
-    - BB-PD via compute_weights_2d
-
-Supported models (1-D):
-    - BB-PD via compute_weights_1d
-
-Usage
------
-    import perifit
-
-    # 1. Build neighbour families (or supply your own)
-    families = perifit.build_families(coords, horizon)
-
-    # 2. Compute weights (one-shot, load-independent)
-    w = perifit.compute_weights(coords, volumes, horizon,
-                                model="bb", families=families)
-
-    # 3. Apply in solver: bond weight = (w[i] + w[j]) / 2
-
-Input:
-    coords   -- (N, 3) array of nodal coordinates
-    volumes  -- (N,)   array of cell volumes
-    horizon  -- scalar, peridynamic horizon delta
-
-Output:
-    w        -- (N,)   array of nodal influence weights
-
-The weights are purely geometric: material constants (micro-modulus c,
-LPS parameters a, b) cancel after per-row normalisation and need not be
-specified.
 """
+from __future__ import annotations
+
+import functools as _functools
+import warnings as _warnings
+
+__version__ = "3.0.0"
 
 # ---------------------------------------------------------------------------
-# 3-D public API
+# Public API
 # ---------------------------------------------------------------------------
+from .api import SurfaceCorrection, bond_weights, nodal_weights, surface_correction
+from .core.bond_weights import BondWeightInfo
+from .core.families import build_bonds, build_families, families_from_bonds
+
+# Closed-form horizon moments (1-D segment, 2-D disc, 3-D ball)
 from .core.moments import (
     ball_moment,
     ball_moment_over_r2,
     ball_moment_over_r3,
+    full_ball_shape_tensor_diag,
     full_ball_volume,
     full_ball_weighted_volume,
-    full_ball_shape_tensor_diag,
 )
-from .core.targets import (
-    build_targets_bb,
-    build_targets_osb,
-    build_targets_nosb,
+from .core.moments_1d import (
+    full_segment_length,
+    full_segment_weighted_volume,
+    segment_moment,
+    segment_moment_over_r,
+    segment_moment_over_r3,
 )
-from .core.local_system import (
-    build_local_system_bb,
-    build_local_system_osb,
-    build_local_system_nosb,
-)
-from .core.weights import compute_weights, build_families
-
-# ---------------------------------------------------------------------------
-# 2-D public API
-# ---------------------------------------------------------------------------
 from .core.moments_2d import (
     disc_moment,
     disc_moment_over_r2,
     disc_moment_over_r3,
     full_disc_area,
-    full_disc_weighted_volume,
     full_disc_shape_tensor_diag,
+    full_disc_weighted_volume,
 )
-from .core.targets_2d import build_targets_bb_2d
-from .core.local_system_2d import build_local_system_bb_2d
-from .core.weights_2d import compute_weights_2d, build_families_2d
 
-# ---------------------------------------------------------------------------
-# 1-D public API
-# ---------------------------------------------------------------------------
-from .core.moments_1d import (
-    segment_moment,
-    segment_moment_over_r,
-    segment_moment_over_r3,
-    full_segment_length,
-    full_segment_weighted_volume,
-)
-from .core.targets_1d import build_targets_bb_1d
-from .core.local_system_1d import build_local_system_bb_1d
-from .core.weights_1d import compute_weights_1d, build_families_1d
-
-# ---------------------------------------------------------------------------
-# Existing package modules (mesh I/O, quality diagnostics, etc.)
-# ---------------------------------------------------------------------------
-from .mesh.readers import load_mesh
-from .io.writers import write_weights
+# Mesh I/O, configuration and weight-quality tools
 from .config import CorrectionConfig
-from .quality.diagnostics import diagnose_weights, WeightDiagnostics
-from .quality.cleaning import clean_mesh, CleaningResult
+from .io.writers import write_bond_weights, write_weights
+from .mesh.readers import load_mesh
+from .quality.cleaning import CleaningResult, clean_mesh
+from .quality.diagnostics import WeightDiagnostics, diagnose_weights
+
+
+# ---------------------------------------------------------------------------
+# Deprecated v2 entry points (removed in v4)
+# ---------------------------------------------------------------------------
+def _deprecated(func, new):
+    @_functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        _warnings.warn(f"perifit.{func.__name__}() is deprecated and will be removed in "
+                       f"perifit 4.0; use {new} instead.  Note that 1-D and 2-D weights "
+                       "changed in 3.0 (see CHANGELOG.md).",
+                       DeprecationWarning, stacklevel=2)
+        return func(*args, **kwargs)
+    return wrapper
+
+
+from .core.weights import compute_weights as _cw3
+from .core.weights_1d import compute_weights_1d as _cw1
+from .core.weights_2d import compute_weights_2d as _cw2
+
+compute_weights = _deprecated(_cw3, "perifit.nodal_weights(coords, volumes, horizon, model=...)")
+compute_weights_2d = _deprecated(_cw2, "perifit.nodal_weights(coords, volumes, horizon)")
+compute_weights_1d = _deprecated(_cw1, "perifit.nodal_weights(coords, volumes, horizon)")
+build_families_2d = build_families
+build_families_1d = build_families
 
 
 def get_example_mesh() -> "pathlib.Path":
-    """
-    Return the path to the bundled test mesh file.
-
-    The file is a structured Cartesian cube [0,1]^3 with 1000 nodes
-    (10x10x10, dx=0.1).  Recommended horizon: delta=0.3 (m=3).
-
-    Example
-    -------
-    >>> from perifit import get_example_mesh, load_mesh, compute_weights
-    >>> coords, volumes = load_mesh(get_example_mesh())
-    >>> weights = compute_weights(coords, volumes, 0.3, model="bb")
-    """
+    """Path of the bundled example mesh: structured cube [0, 1]^3, 1000 nodes, dx = 0.1."""
     import pathlib
     return pathlib.Path(__file__).parent / "data" / "test_mesh_cube_1000.csv"
 
-
-# ---------------------------------------------------------------------------
-# Branding
-# ---------------------------------------------------------------------------
 
 _LOGO = r"""
  ____           _ _____ _ _
@@ -142,60 +116,32 @@ _LOGO = r"""
 
 
 def show_version() -> None:
-    """Print the perifit version banner with ASCII logo and credits."""
+    """Print the perifit version banner."""
     print(_LOGO.lstrip("\n"))
     print(f"perifit v{__version__}")
-    print("Peridynamic Surface Correction via Optimised Nodal Influence Weights")
+    print("Surface corrections for peridynamics: nodal weights and bond weights")
     print()
     print("Developers:  Arman Shojaei & Alexander Hermann")
     print("             Helmholtz-Zentrum Hereon, Germany")
 
 
-# ---------------------------------------------------------------------------
-# Exports
-# ---------------------------------------------------------------------------
-
 __all__ = [
-    # Main 3-D API
-    "compute_weights",
-    "build_families",
-    # 3-D targets
-    "build_targets_bb",
-    "build_targets_osb",
-    "build_targets_nosb",
-    # 3-D local systems
-    "build_local_system_bb",
-    "build_local_system_osb",
-    "build_local_system_nosb",
-    # 3-D moment utilities
-    "ball_moment",
-    "ball_moment_over_r2",
-    "ball_moment_over_r3",
-    "full_ball_volume",
-    "full_ball_weighted_volume",
-    "full_ball_shape_tensor_diag",
-    # 2-D API
-    "compute_weights_2d",
-    "build_families_2d",
-    "build_targets_bb_2d",
-    "build_local_system_bb_2d",
-    "disc_moment",
-    "disc_moment_over_r2",
-    "disc_moment_over_r3",
-    "full_disc_area",
-    "full_disc_weighted_volume",
-    "full_disc_shape_tensor_diag",
-    # I/O and utilities
-    "load_mesh",
-    "write_weights",
-    "get_example_mesh",
-    "CorrectionConfig",
-    "diagnose_weights",
-    "WeightDiagnostics",
-    "clean_mesh",
-    "CleaningResult",
-    # Branding
-    "show_version",
+    # surface corrections
+    "surface_correction", "SurfaceCorrection", "nodal_weights", "bond_weights", "BondWeightInfo",
+    # neighbourhoods
+    "build_bonds", "build_families", "families_from_bonds",
+    # horizon moments
+    "segment_moment", "segment_moment_over_r", "segment_moment_over_r3",
+    "full_segment_length", "full_segment_weighted_volume",
+    "disc_moment", "disc_moment_over_r2", "disc_moment_over_r3",
+    "full_disc_area", "full_disc_weighted_volume", "full_disc_shape_tensor_diag",
+    "ball_moment", "ball_moment_over_r2", "ball_moment_over_r3",
+    "full_ball_volume", "full_ball_weighted_volume", "full_ball_shape_tensor_diag",
+    # I/O, configuration, quality
+    "load_mesh", "write_weights", "write_bond_weights", "get_example_mesh", "CorrectionConfig",
+    "diagnose_weights", "WeightDiagnostics", "clean_mesh", "CleaningResult",
+    # deprecated (v2)
+    "compute_weights", "compute_weights_2d", "compute_weights_1d",
+    "build_families_2d", "build_families_1d",
+    "show_version", "__version__",
 ]
-
-__version__ = "2.0.1"

@@ -272,7 +272,8 @@ class TestWeightsBBCube:
     """Test BB weight computation on the 11x11x11 unit cube."""
 
     @pytest.fixture(scope="class")
-    def bb_weights(self):
+    @classmethod
+    def bb_weights(cls):
         families = _get_families()
         return compute_weights(
             _COORDS, _VOLUMES, _DELTA,
@@ -327,7 +328,8 @@ class TestWeightsOSBCube:
     """Test OSB weight computation on the 11x11x11 unit cube."""
 
     @pytest.fixture(scope="class")
-    def osb_weights(self):
+    @classmethod
+    def osb_weights(cls):
         families = _get_families()
         return compute_weights(
             _COORDS, _VOLUMES, _DELTA,
@@ -389,7 +391,8 @@ class TestWeightsMatchReference:
     ])
 
     @pytest.fixture(scope="class")
-    def computed_weights(self):
+    @classmethod
+    def computed_weights(cls):
         families = _get_families()
         w_bb = compute_weights(
             _COORDS, _VOLUMES, _DELTA,
@@ -566,12 +569,15 @@ class TestBranding:
     """Test version string and show_version function."""
 
     def test_version(self):
-        assert perifit.__version__ == "2.0.1"
+        import re
+        from pathlib import Path
+        pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
+        assert perifit.__version__ == re.search(r'^version = "(.+)"', pyproject, re.M).group(1)
 
     def test_show_version(self, capsys):
         perifit.show_version()
         captured = capsys.readouterr()
-        assert "perifit v2.0.1" in captured.out
+        assert f"perifit v{perifit.__version__}" in captured.out
         assert "Arman Shojaei" in captured.out
         assert "Alexander Hermann" in captured.out
         assert "Hereon" in captured.out

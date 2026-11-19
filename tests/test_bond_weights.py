@@ -29,7 +29,8 @@ class TestSphereMoments:
 
 class TestSolution:
     @pytest.fixture(scope="class")
-    def square(self):
+    @classmethod
+    def square(cls):
         nodes, delta = _square()
         V = np.full(len(nodes), 0.05 ** 2)
         bonds, beta, info = compute_bond_weights(nodes, V, delta)

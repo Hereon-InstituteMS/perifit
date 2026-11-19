@@ -20,10 +20,12 @@ class CorrectionConfig:
     material constants E and nu.  Only the mesh geometry and horizon
     (or equivalently, the horizon-to-spacing ratio m) are needed.
 
-    Model
-    -----
-    model   : PD model type: 'state_based' (LPS, 109 operators) or
-              'bond_based' (54 operators).  Default: 'state_based'.
+    Method and model
+    ----------------
+    method  : surface correction: 'nodal' (one weight per node) or 'bond'
+              (one weight per bond).  Must be chosen explicitly.
+    model   : PD model: 'bb' / 'bond_based' or 'osb' / 'state_based'
+              (state-based is available for nodal weights in 3-D only).
 
     Discretisation
     ---------------
@@ -55,8 +57,9 @@ class CorrectionConfig:
     verbose  : Print progress information.
     """
 
-    # Model
-    model: str = 'state_based'
+    # Method and model
+    method: Optional[str] = None
+    model: str = 'bb'
 
     # Discretisation
     horizon: float | None = None
@@ -64,7 +67,7 @@ class CorrectionConfig:
 
     # Solver
     tol:      float = 1e-10
-    max_iter: int   = 1000
+    max_iter: int   = 5000
 
     # Regularisation
     tikhonov_rel: float = 1.0e-8
@@ -83,5 +86,11 @@ class CorrectionConfig:
             raise ValueError(f"Horizon delta={self.horizon} must be positive.")
         if self.m_ratio <= 0.0:
             raise ValueError(f"m_ratio={self.m_ratio} must be positive.")
-        if self.model not in ('state_based', 'bond_based'):
-            raise ValueError(f"model={self.model!r} must be 'state_based' or 'bond_based'.")
+        if self.method not in (None, 'nodal', 'bond'):
+            raise ValueError(f"method={self.method!r} must be 'nodal' or 'bond'.")
+        aliases = {'bond_based': 'bb', 'state_based': 'osb'}
+        self.model = aliases.get(self.model, self.model)
+        if self.model not in ('bb', 'osb'):
+            raise ValueError(f"model={self.model!r} must be 'bb' or 'osb'.")
+        if self.method == 'bond' and self.model != 'bb':
+            raise ValueError("bond weights are defined for the bond-based model ('bb') only.")

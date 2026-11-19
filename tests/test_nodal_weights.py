@@ -118,7 +118,8 @@ class TestBar:
     """Example 1: standard PD does not converge; nodal weights converge at first order."""
 
     @pytest.fixture(scope="class")
-    def errors(self):
+    @classmethod
+    def errors(cls):
         out = {"pd": [], "nodal": []}
         for dx in (0.02, 0.01, 0.005):
             x, V, delta, bonds, error = bar_problem(dx)
@@ -142,7 +143,8 @@ class TestCantilever:
     """Example 2 (paper setup, m = 4)."""
 
     @pytest.fixture(scope="class")
-    def errors(self):
+    @classmethod
+    def errors(cls):
         out = {"pd": [], "nodal": []}
         for dx in (0.04, 0.02):
             nodes, V, delta, bonds, error = cantilever_problem(dx)
