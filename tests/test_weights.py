@@ -1,18 +1,15 @@
 """End-to-end tests for the weight computation and output writers."""
 import math
 import tempfile
-from pathlib import Path
 
 import numpy as np
 import pytest
 from scipy.spatial import KDTree
 
 from perifit import write_weights
-from perifit.core.weights import compute_weights
-from perifit.core.targets import build_targets_osb
-from perifit.core.moments import full_ball_weighted_volume
 from perifit.core.local_system import build_local_system_osb
-from perifit.core.weights import build_families
+from perifit.core.targets import build_targets_osb
+from perifit.core.weights import build_families, compute_weights
 
 
 def _cube_mesh(dx: float):

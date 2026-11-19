@@ -38,17 +38,6 @@ import argparse
 import numpy as np
 
 
-# Map CLI model names to the core API model codes
-_MODEL_MAP = {
-    'bb': 'bb',
-    'osb': 'osb',
-    'bb_pd': 'bb',
-    'osb_pd': 'osb',
-    'bond_based': 'bb',
-    'state_based': 'osb',
-}
-
-
 def _infer_dx(coords):
     """Estimate nodal spacing as the median nearest-neighbour distance."""
     from scipy.spatial import KDTree
@@ -185,38 +174,27 @@ Examples
     return p
 
 
-_METHOD_MISSING = (
-    "choose the surface correction with --method:\n"
-    "  --method nodal : one weight per node, a bond is scaled by (w_i + w_j)/2;\n"
-    "                   compact, works with per-node solvers (Peridigm, PeriLab)\n"
-    "  --method bond  : one weight per bond; more accurate and robust (bond-based PD)"
-)
-
-
-def _compute(method, coords, volumes, horizon, model, dim, args):
-    """Run the chosen method; returns (weights or None, bonds or None, beta or None)."""
-    from perifit import bond_weights, nodal_weights
-    if method == 'nodal':
-        w = nodal_weights(coords, volumes, horizon, model=model, dim=dim,
-                          tol=args.tol, max_iter=args.max_iter, verbose=not args.quiet)
-        return w, None, None
-    bonds, beta = bond_weights(coords, volumes, horizon, dim=dim)
-    if not args.quiet:
-        print(f"  {len(bonds):,d} bond weights: min={beta.min():.4f}  max={beta.max():.4f}  "
-              f"median={np.median(beta):.4f}")
-    return None, bonds, beta
-
-
-def _write(method, coords, volumes, horizon, w, bonds, beta, outdir, stem, formats):
+def _write(corr, coords, volumes, horizon, outdir, stem, formats):
+    """Write nodal weights (per-node formats) or bond weights (CSV/NPZ)."""
     from perifit import write_bond_weights, write_weights
-    if method == 'nodal':
-        return write_weights(coords, volumes, w, outdir=outdir, stem=stem,
+    if corr.method == 'nodal':
+        return write_weights(coords, volumes, corr.node_weights, outdir=outdir, stem=stem,
                              formats=formats, horizon=horizon)
-    return write_bond_weights(coords, volumes, bonds, beta, outdir=outdir, stem=stem,
+    return write_bond_weights(coords, volumes, corr.bonds, corr.factor, outdir=outdir, stem=stem,
                               formats=formats, horizon=horizon)
 
 
+def _report(corr, quiet):
+    if not quiet and corr.method == 'bond':
+        b = corr.factor
+        print(f"  {len(b):,d} bond weights: min={b.min():.4f}  max={b.max():.4f}  "
+              f"median={np.median(b):.4f}")
+
+
 def main(argv=None):
+    from perifit import get_example_mesh, load_mesh, surface_correction
+    from perifit.api import METHOD_HELP, canonical_model
+
     parser = _build_parser()
     args = parser.parse_args(argv)
 
@@ -225,34 +203,44 @@ def main(argv=None):
         show_version()
         return
     if args.method is None:
-        parser.error(_METHOD_MISSING)
-
+        parser.error(METHOD_HELP.replace("  nodal :", "  --method nodal :")
+                     .replace("  bond  :", "  --method bond  :"))
     method = args.method
-    model = _MODEL_MAP.get(args.model, args.model) if args.model else ('osb' if method == 'nodal' else 'bb')
-    if method == 'bond' and model != 'bb':
-        parser.error("bond weights are defined for the bond-based model only (use --model bb)")
     if method == 'bond' and (args.diagnose or args.clean):
         parser.error("--diagnose and --clean apply to nodal weights only")
+    if method == 'bond' and args.model and canonical_model(args.model) != 'bb':
+        parser.error("bond weights are defined for the bond-based model only (use --model bb)")
     stem = args.stem or ('perifit_weights' if method == 'nodal' else 'perifit_bond_weights')
     formats = [f.strip() for f in args.output.split(',')]
-    label = {'nodal': 'nodal weights', 'bond': 'bond weights'}[method]
 
-    from perifit import get_example_mesh, load_mesh
+    def model_for(dim):
+        """--model, else state-based for 3-D nodal weights and bond-based otherwise."""
+        if args.model:
+            return canonical_model(args.model)
+        return 'osb' if (method == 'nodal' and dim == 3) else 'bb'
+
+    def correct(coords, volumes, horizon, dim):
+        corr = surface_correction(coords, volumes, horizon, method=method,
+                                  model=model_for(dim or coords.shape[1]),
+                                  dim=dim, tol=args.tol, max_iter=args.max_iter,
+                                  verbose=not args.quiet)
+        _report(corr, args.quiet)
+        return corr
 
     # --- Demo mode ---
     if args.demo:
+        label = {'nodal': 'nodal weights', 'bond': 'bond weights'}[method]
         print("=" * 60)
         print("perifit  --  built-in demo (1000-node cube)")
         print("  Mesh   : structured [0,1]^3, dx=0.1, 1000 nodes")
         print(f"  Horizon: delta = {args.m_ratio * 0.1:.2f}  (m = {args.m_ratio:g})")
-        print(f"  Method : {label}  ({'BB-PD' if model == 'bb' else 'OSB-PD'})")
+        print(f"  Method : {label}  ({'BB-PD' if model_for(3) == 'bb' else 'OSB-PD'})")
         print("=" * 60)
         coords, volumes = load_mesh(get_example_mesh())
         horizon = args.m_ratio * _infer_dx(coords)
-        w, bonds, beta = _compute(method, coords, volumes, horizon, model, None, args)
+        corr = correct(coords, volumes, horizon, None)
         demo_formats = ["csv", "dat", "vtk"] if method == 'nodal' else ["csv", "npz"]
-        paths = _write(method, coords, volumes, horizon, w, bonds, beta,
-                       args.outdir, "demo_cube", demo_formats)
+        paths = _write(corr, coords, volumes, horizon, args.outdir, "demo_cube", demo_formats)
         print("\nOutput files:")
         for fmt, path in paths.items():
             print(f"  [{fmt:6s}]  {path}")
@@ -278,22 +266,25 @@ def main(argv=None):
             print(f"  Auto-inferred dx={dx:.4g}, horizon={horizon:.4g} (m={args.m_ratio})")
 
     # --- Compute ---
-    w, bonds, beta = _compute(method, coords, volumes, horizon, model, args.dim, args)
+    try:
+        corr = correct(coords, volumes, horizon, args.dim)
+    except ValueError as err:
+        parser.error(f"{err}  (command line: --dim N)")
 
     if args.diagnose:
         from perifit.quality.diagnostics import diagnose_weights
-        print(f"\n{diagnose_weights(w, threshold_sigma=args.threshold_sigma).summary}")
+        print(f"\n{diagnose_weights(corr.node_weights, threshold_sigma=args.threshold_sigma).summary}")
 
     if args.clean:
         from perifit.quality.cleaning import clean_mesh
-        result = clean_mesh(coords, volumes, w, threshold_sigma=args.threshold_sigma)
+        result = clean_mesh(coords, volumes, corr.node_weights, threshold_sigma=args.threshold_sigma)
         print(f"\nCleaning: {result.original_n} -> {result.cleaned_n} nodes "
               f"({result.original_n - result.cleaned_n} removed); recomputing weights")
         coords, volumes = result.coords, result.volumes
-        w, bonds, beta = _compute(method, coords, volumes, horizon, model, args.dim, args)
+        corr = correct(coords, volumes, horizon, args.dim)
 
     # --- Write ---
-    paths = _write(method, coords, volumes, horizon, w, bonds, beta, args.outdir, stem, formats)
+    paths = _write(corr, coords, volumes, horizon, args.outdir, stem, formats)
     print("\nOutput files:")
     for fmt, path in paths.items():
         print(f"  [{fmt:10s}]  {path}")

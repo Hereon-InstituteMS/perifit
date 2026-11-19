@@ -92,9 +92,10 @@ class TestCalibration1D:
             assert np.abs(compute_weights_1d(x * s, V * s, delta * s) - w).max() < 1e-10
 
     def test_removed_option_raises(self):
+        import perifit
         x, V, delta, _, _ = bar_problem(0.05)
         with pytest.raises(TypeError, match="removed"):
-            compute_weights_1d(x, V, delta, row_norm="none")
+            perifit.compute_weights_1d(x, V, delta, row_norm="none")
 
 
 class TestCalibration2D:

@@ -18,7 +18,7 @@ from pathlib import Path
 # Allow running without installation
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from perifit import load_mesh, compute_weights, write_weights
+from perifit import load_mesh, nodal_weights, write_weights
 
 # -- Parameters --------------------------------------------------------------
 MESH_FILE = Path(__file__).parent / "test_mesh_cube_1000.csv"
@@ -30,9 +30,9 @@ coords, volumes = load_mesh(MESH_FILE, horizon=DELTA, vol_col=3)
 print(f"  {len(coords):,d} nodes  |  volume per node = {volumes[0]:.4e}")
 
 # -- Compute weights ---------------------------------------------------------
-weights = compute_weights(
+weights = nodal_weights(
     coords, volumes,
-    horizon=DELTA,
+    DELTA,
     verbose=True,
 )
 

@@ -1,21 +1,21 @@
-"""1-D nodal weights (bond-based PD): per-node fits assembled into ``K_w w = F_w``."""
+"""1-D nodal weights (bond-based PD).
+
+On a uniform grid the interior weights equal ``m / (m + 1)`` (m = delta/dx),
+which exactly removes the midpoint-quadrature error of the bulk stiffness.
+No partial-volume factor (beta) must be used together with these weights.
+"""
 from __future__ import annotations
 
 from typing import Sequence
 
 import numpy as np
 
-from ._assembly import solve_weight_system
-from .families import build_families
+from ._assembly import nodal_weights_from_local
+from .families import check_inputs
 from .local_system_1d import build_local_system_bb_1d
 from .targets_1d import build_targets_bb_1d
 
-__all__ = ["compute_weights_1d", "build_families_1d"]
-
-
-def build_families_1d(coords: np.ndarray, horizon: float, tol: float | None = None) -> list[list[int]]:
-    """Per-node neighbour lists within the horizon (alias of :func:`build_families`)."""
-    return build_families(np.asarray(coords, dtype=np.float64).reshape(-1), horizon, tol)
+__all__ = ["compute_weights_1d"]
 
 
 def compute_weights_1d(
@@ -28,36 +28,9 @@ def compute_weights_1d(
     tikhonov_rel: float = 1e-8,
     tikhonov_abs: float = 1e-12,
     verbose: bool = False,
-    **removed,
 ) -> np.ndarray:
-    """Nodal surface-correction weights for a 1-D bond-based PD discretisation.
-
-    Returns ``w`` of shape (N,); a bond (i, j) is scaled by ``(w[i] + w[j]) / 2``.
-
-    On a uniform grid the interior weights equal ``m / (m + 1)`` (m = delta/dx),
-    which exactly removes the midpoint-quadrature error of the bulk stiffness.
-    No partial-volume factor (beta) must be used together with these weights.
-    """
-    if "row_norm" in removed:
-        raise TypeError("compute_weights_1d(row_norm=...) was removed in perifit 3.0: the "
-                        "per-row normalised fit is now the only one (it is unit independent).")
-    if removed:
-        raise TypeError(f"unexpected keyword arguments {sorted(removed)}")
-    coords = np.asarray(coords, dtype=np.float64).reshape(-1)
-    volumes = np.asarray(volumes, dtype=np.float64)
-    N = len(coords)
-    if volumes.shape != (N,):
-        raise ValueError(f"volumes must be shape ({N},), got {volumes.shape}")
-    if horizon <= 0:
-        raise ValueError(f"horizon must be positive, got {horizon}")
-    if families is None:
-        families = build_families(coords, horizon)
-    if verbose:
-        print(f"perifit nodal weights  1-D BB  N={N:,d}  delta={horizon:.4g}")
-    d_star, e_star = build_targets_bb_1d(horizon)
-
-    def local(i: int, nbrs: np.ndarray):
-        return build_local_system_bb_1d(coords[nbrs] - coords[i], volumes[nbrs], horizon,
-                                        d_star, e_star, tikhonov_rel, tikhonov_abs)
-
-    return solve_weight_system(N, families, local, tol=tol, max_iter=max_iter, verbose=verbose)
+    """Nodal weights ``w`` (N,) for a 1-D grid; a bond (i, j) is scaled by ``(w[i] + w[j]) / 2``."""
+    pts, vol = check_inputs(coords, volumes, horizon, dims=(1,))
+    return nodal_weights_from_local(pts, vol, horizon, build_local_system_bb_1d,
+                                    build_targets_bb_1d(horizon), families, tol, max_iter,
+                                    tikhonov_rel, tikhonov_abs, verbose, "1-D BB")

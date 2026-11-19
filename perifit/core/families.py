@@ -36,6 +36,21 @@ def _as_points(coords: np.ndarray) -> np.ndarray:
     return pts
 
 
+def check_inputs(coords: np.ndarray, volumes: np.ndarray, horizon: float,
+                 dims: tuple[int, ...] = (1, 2, 3)) -> tuple[np.ndarray, np.ndarray]:
+    """Validate a point cloud; returns ``(points (N, d), volumes (N,))`` as float arrays."""
+    pts = _as_points(coords)
+    if pts.shape[1] not in dims:
+        raise ValueError(f"coords must have {' or '.join(map(str, dims))} column(s), "
+                         f"got shape {pts.shape}")
+    vol = np.asarray(volumes, dtype=np.float64)
+    if vol.shape != (len(pts),):
+        raise ValueError(f"volumes must be shape ({len(pts)},), got {vol.shape}")
+    if not np.isfinite(horizon) or horizon <= 0:
+        raise ValueError(f"horizon must be a positive number, got {horizon}")
+    return pts, vol
+
+
 def build_bonds(coords: np.ndarray, horizon: float, tol: float | None = None) -> np.ndarray:
     """All bonds within the horizon as an ``(Nb, 2)`` int array, ``i < j``, sorted.
 

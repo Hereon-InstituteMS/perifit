@@ -78,11 +78,21 @@ from .quality.diagnostics import WeightDiagnostics, diagnose_weights
 # ---------------------------------------------------------------------------
 # Deprecated v2 entry points (removed in v4)
 # ---------------------------------------------------------------------------
-def _deprecated(func, new):
+_REMOVED_KWARGS = {
+    "row_norm": "the per-row normalised 1-D fit is now the only one (it is unit independent)",
+    "row_normalize": "the per-row normalised fit is the only one",
+    "c_bond": "material constants are not needed; the weights are purely geometric",
+}
+
+
+def _deprecated(func, replacement):
     @_functools.wraps(func)
     def wrapper(*args, **kwargs):
+        for name in _REMOVED_KWARGS.keys() & kwargs.keys():
+            raise TypeError(f"perifit.{func.__name__}({name}=...) was removed in perifit 3.0: "
+                            f"{_REMOVED_KWARGS[name]}.")
         _warnings.warn(f"perifit.{func.__name__}() is deprecated and will be removed in "
-                       f"perifit 4.0; use {new} instead.  Note that 1-D and 2-D weights "
+                       f"perifit 4.0; use {replacement} instead.  Note that 1-D and 2-D weights "
                        "changed in 3.0 (see CHANGELOG.md).",
                        DeprecationWarning, stacklevel=2)
         return func(*args, **kwargs)
@@ -96,8 +106,16 @@ from .core.weights_2d import compute_weights_2d as _cw2
 compute_weights = _deprecated(_cw3, "perifit.nodal_weights(coords, volumes, horizon, model=...)")
 compute_weights_2d = _deprecated(_cw2, "perifit.nodal_weights(coords, volumes, horizon)")
 compute_weights_1d = _deprecated(_cw1, "perifit.nodal_weights(coords, volumes, horizon)")
-build_families_2d = build_families
-build_families_1d = build_families
+
+
+def build_families_1d(coords, horizon, tol=None):
+    """Deprecated alias of :func:`build_families`."""
+    return _deprecated(build_families, "perifit.build_families")(coords, horizon, tol)
+
+
+def build_families_2d(coords, horizon, tol=None):
+    """Deprecated alias of :func:`build_families`."""
+    return _deprecated(build_families, "perifit.build_families")(coords, horizon, tol)
 
 
 def get_example_mesh() -> "pathlib.Path":

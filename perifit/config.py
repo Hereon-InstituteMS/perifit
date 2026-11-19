@@ -88,9 +88,7 @@ class CorrectionConfig:
             raise ValueError(f"m_ratio={self.m_ratio} must be positive.")
         if self.method not in (None, 'nodal', 'bond'):
             raise ValueError(f"method={self.method!r} must be 'nodal' or 'bond'.")
-        aliases = {'bond_based': 'bb', 'state_based': 'osb'}
-        self.model = aliases.get(self.model, self.model)
-        if self.model not in ('bb', 'osb'):
-            raise ValueError(f"model={self.model!r} must be 'bb' or 'osb'.")
+        from .api import canonical_model
+        self.model = canonical_model(self.model)
         if self.method == 'bond' and self.model != 'bb':
             raise ValueError("bond weights are defined for the bond-based model ('bb') only.")

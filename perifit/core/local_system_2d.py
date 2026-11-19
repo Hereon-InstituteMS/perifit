@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ._lsq import solve_local
+from ._lsq import bond_averaged, solve_local
 from .targets_2d import DERIV_TESTS, ENERGY_TESTS
 
 NP_2D = 6                     # basis 1, xn, yn, xn^2, xn*yn, yn^2
@@ -52,9 +52,7 @@ def build_local_system_bb_2d(
     r3 = np.einsum("ij,ij->i", xi, xi) ** 1.5
 
     p = _poly_basis_2d(xi, delta)
-    p_eff = p.copy()
-    p_eff[:, 0] = 1.0
-    p_eff[:, 1:] *= 0.5
+    p_eff = bond_averaged(p)
 
     rows = [p]
     for a in range(2):

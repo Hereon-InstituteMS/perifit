@@ -47,7 +47,7 @@ import warnings
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.sparse import csr_matrix, diags
+from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import LinearOperator, lsmr
 
 from .families import build_bonds
@@ -139,22 +139,23 @@ def compute_bond_weights(
     for k, (p, a) in enumerate(moments):
         G[:, k] = (r / horizon) ** p * np.prod(e ** np.asarray(a), axis=1) / horizon ** d
         t[k] = sphere_moment(a) / (p + d)
-    # sparse constraint matrix: row (node, moment); the row of node i uses V_j and
-    # the row of node j uses V_i.  Rows are normalised (Jacobi scaling) and rows
-    # without any bond are dropped.
-    idx = np.arange(nb)
-    rows = np.concatenate([(bi[:, None] * nc + np.arange(nc)).ravel(),
-                           (bj[:, None] * nc + np.arange(nc)).ravel()])
-    cols = np.concatenate([np.repeat(idx, nc), np.repeat(idx, nc)])
-    vals = np.concatenate([(G * vol[bj][:, None]).ravel(), (G * vol[bi][:, None]).ravel()])
-    A = csr_matrix((vals, (rows, cols)), shape=(n * nc, nb))
-    del rows, cols, vals
-    row_norm = np.sqrt(np.asarray(A.multiply(A).sum(axis=1)).ravel())
+    # Sparse constraint matrix, one column per bond.  Column b holds the nc rows of
+    # its lower node followed by the nc rows of its upper node (row = node*nc + k),
+    # so it is built directly in CSC form with sorted indices.  The row of a node
+    # uses the volume of the *other* end of the bond.
+    lo, hi = np.minimum(bi, bj), np.maximum(bi, bj)
+    k = np.arange(nc)
+    indices = np.concatenate([lo[:, None] * nc + k, hi[:, None] * nc + k], axis=1).ravel()
+    data = np.concatenate([G * vol[hi][:, None], G * vol[lo][:, None]], axis=1).ravel()
+    indptr = np.arange(0, 2 * nc * nb + 1, 2 * nc)
+    # Jacobi scaling: normalise every row; rows without any bond are dropped
+    row_norm = np.sqrt(np.bincount(indices, data ** 2, minlength=n * nc))
     live = row_norm > 0.0
     D = np.zeros(n * nc)
     D[live] = 1.0 / row_norm[live]
-    A = diags(D) @ A                      # row-normalised, CSR
-    At = A.T                              # CSC view, no copy
+    data *= D[indices]
+    A = csc_matrix((data, indices, indptr), shape=(n * nc, nb))
+    At = A.T                              # CSR view, no copy
     target = D * np.tile(t, n)
 
     def solve(active: np.ndarray) -> tuple[np.ndarray, int]:

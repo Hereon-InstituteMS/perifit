@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ._lsq import solve_local
+from ._lsq import bond_averaged, solve_local
 from .targets_1d import DERIV_DEGREES, ENERGY_DEGREES
 
 NP_1D = 3                     # polynomial basis 1, xn, xn^2
@@ -48,9 +48,7 @@ def build_local_system_bb_1d(
     r = np.abs(xi)
 
     p = _poly_basis_1d(xi, delta)
-    p_eff = p.copy()
-    p_eff[:, 0] = 1.0
-    p_eff[:, 1:] *= 0.5
+    p_eff = bond_averaged(p)
 
     rows = [p]
     for k in DERIV_DEGREES:

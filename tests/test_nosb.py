@@ -1,12 +1,13 @@
 """Tests for NOSB-PD (correspondence model) surface correction."""
 
 import math
+
 import numpy as np
 import pytest
+
+from perifit.core.local_system import build_local_system_nosb
 from perifit.core.moments import ball_moment
 from perifit.core.targets import build_targets_nosb
-from perifit.core.local_system import build_local_system_nosb
-from perifit.core.weights import compute_weights, build_families
 
 DELTA = 0.15
 

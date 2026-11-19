@@ -1,21 +1,16 @@
-"""2-D nodal weights (bond-based PD): per-node fits assembled into ``K_w w = F_w``."""
+"""2-D nodal weights (bond-based PD); see :mod:`perifit.core.targets_2d` for the fitted rows."""
 from __future__ import annotations
 
 from typing import Sequence
 
 import numpy as np
 
-from ._assembly import solve_weight_system
-from .families import build_families
+from ._assembly import nodal_weights_from_local
+from .families import check_inputs
 from .local_system_2d import build_local_system_bb_2d
 from .targets_2d import build_targets_bb_2d
 
-__all__ = ["compute_weights_2d", "build_families_2d"]
-
-
-def build_families_2d(coords: np.ndarray, horizon: float, tol: float | None = None) -> list[list[int]]:
-    """Per-node neighbour lists within the horizon (alias of :func:`build_families`)."""
-    return build_families(coords, horizon, tol)
+__all__ = ["compute_weights_2d"]
 
 
 def compute_weights_2d(
@@ -29,22 +24,11 @@ def compute_weights_2d(
     tikhonov_abs: float = 1e-12,
     verbose: bool = False,
 ) -> np.ndarray:
-    """Nodal surface-correction weights for a 2-D bond-based PD discretisation.
+    """Nodal weights ``w`` (N,) for a 2-D point cloud; a bond (i, j) is scaled by ``(w[i] + w[j]) / 2``.
 
-    Returns ``w`` of shape (N,); a bond (i, j) is scaled by ``(w[i] + w[j]) / 2``.
+    Validated for horizon ratios m = delta/dx of 3-4 (see the README).
     """
-    coords = np.asarray(coords, dtype=np.float64)
-    volumes = np.asarray(volumes, dtype=np.float64)
-    N = len(coords)
-    if families is None:
-        families = build_families(coords, horizon)
-    if verbose:
-        print(f"perifit nodal weights  2-D BB  N={N:,d}  delta={horizon:.4g}")
-    d_star, e_star = build_targets_bb_2d(horizon)
-
-    def local(i: int, nbrs: np.ndarray):
-        return build_local_system_bb_2d(coords[nbrs] - coords[i], volumes[nbrs], horizon,
-                                        d_star, e_star, tikhonov_rel=tikhonov_rel,
-                                        tikhonov_abs=tikhonov_abs)
-
-    return solve_weight_system(N, families, local, tol=tol, max_iter=max_iter, verbose=verbose)
+    pts, vol = check_inputs(coords, volumes, horizon, dims=(2,))
+    return nodal_weights_from_local(pts, vol, horizon, build_local_system_bb_2d,
+                                    build_targets_bb_2d(horizon), families, tol, max_iter,
+                                    tikhonov_rel, tikhonov_abs, verbose, "2-D BB")

@@ -13,8 +13,8 @@ from typing import Sequence
 
 import numpy as np
 
-from ._assembly import solve_weight_system
-from .families import build_families
+from ._assembly import nodal_weights_from_local
+from .families import build_families, check_inputs
 from .local_system import build_local_system_bb, build_local_system_osb
 from .targets import build_targets_bb, build_targets_osb
 
@@ -58,30 +58,10 @@ def compute_weights(
     model = model.lower()
     if model not in _MODELS:
         raise ValueError(f"model must be one of {_MODELS}, got {model!r}")
-    coords = np.asarray(coords, dtype=np.float64)
-    volumes = np.asarray(volumes, dtype=np.float64)
-    if coords.ndim != 2 or coords.shape[1] != 3:
-        raise ValueError(f"coords must be shape (N, 3), got {coords.shape}")
-    N = len(coords)
-    if volumes.shape != (N,):
-        raise ValueError(f"volumes must be shape ({N},), got {volumes.shape}")
-    if horizon <= 0:
-        raise ValueError(f"horizon must be positive, got {horizon}")
-
-    if families is None:
-        families = build_families(coords, horizon)
-    if verbose:
-        print(f"perifit nodal weights  3-D {model.upper()}  N={N:,d}  delta={horizon:.4g}")
-
+    pts, vol = check_inputs(coords, volumes, horizon, dims=(3,))
     if model == "bb":
-        d_star, e_star = build_targets_bb(horizon)
-        build = build_local_system_bb
+        build, targets = build_local_system_bb, build_targets_bb(horizon)
     else:
-        d_star, e_star = build_targets_osb(horizon)
-        build = build_local_system_osb
-
-    def local(i: int, nbrs: np.ndarray):
-        return build(coords[nbrs] - coords[i], volumes[nbrs], horizon, d_star, e_star,
-                     tikhonov_rel, tikhonov_abs)
-
-    return solve_weight_system(N, families, local, tol=tol, max_iter=max_iter, verbose=verbose)
+        build, targets = build_local_system_osb, build_targets_osb(horizon)
+    return nodal_weights_from_local(pts, vol, horizon, build, targets, families, tol, max_iter,
+                                    tikhonov_rel, tikhonov_abs, verbose, f"3-D {model.upper()}")

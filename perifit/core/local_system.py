@@ -1,4 +1,4 @@
-"""Per-node local least-squares systems for 3-D BB and OSB PD.
+"""Per-node local least-squares systems of the 3-D nodal weights (BB, OSB, NOSB).
 
 For each node i with family {j} and bond vectors xi_j = x_j - x_i,
 a Tikhonov-regularised LS problem is solved:
@@ -10,8 +10,10 @@ The stacked matrix M has (n_F + 54) rows x 10 columns:
   - 27 derivative rows:   match full-ball derivative targets (3 dirs x 9 tests)
   - 27 energy rows:       match full-ball energy targets (3 lifts x 9 tests)
 
-After per-row normalisation and Tikhonov-regularised solve, the function
-returns:
+The correspondence (NOSB) system has the 27 gradient rows only.  Every
+system is solved by :func:`perifit.core._lsq.solve_local` (per-row
+normalisation, Tikhonov regularisation, round-off groups of equal block and
+test degree) and returns
   - beta_i:   right-hand side contribution for node i in the global system
   - coupling: off-diagonal coefficients relating w_i to neighbour weights
 
@@ -25,7 +27,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ._lsq import solve_local
+from ._lsq import bond_averaged, solve_local
 
 NP = 10  # polynomial basis dimension
 
@@ -67,21 +69,6 @@ _GROUPS_DERIV_ENERGY = _groups(2)   # BB, OSB: 27 derivative + 27 energy rows
 _GROUPS_DERIV_ONLY = _groups(1)     # NOSB:    27 gradient rows
 
 
-def _solve_local(
-    ML: np.ndarray,
-    targets: np.ndarray,
-    n_F: int,
-    tikhonov_rel: float,
-    tikhonov_abs: float,
-    row_groups=None,
-) -> tuple[float, np.ndarray]:
-    """Per-row normalised, Tikhonov-regularised solve (see :mod:`perifit.core._lsq`)."""
-    return solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs, row_groups)
-
-
-# ---------------------------------------------------------------------------
-# BB-PD local system  (54 operator rows: 27 derivative + 27 energy)
-# ---------------------------------------------------------------------------
 def build_local_system_bb(
     xi_bonds: np.ndarray,
     volumes: np.ndarray,
@@ -106,9 +93,7 @@ def build_local_system_bb(
 
     p_arr = _poly_basis(xi_bonds, delta)
     dph = _dphi_all(xi_bonds)
-    p_eff = np.empty_like(p_arr)
-    p_eff[:, 0] = 1.0
-    p_eff[:, 1:] = 0.5 * p_arr[:, 1:]
+    p_eff = bond_averaged(p_arr)
 
     ML[:n_F, :] = p_arr
 
@@ -125,7 +110,7 @@ def build_local_system_bb(
             ML[row, :] = (0.25 * dph[:, k_idx] ** 2 * xi_ell_sq_over_r3 * volumes) @ p_eff
 
     targets = np.concatenate([d_star, e_star])
-    return _solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs, _GROUPS_DERIV_ENERGY)
+    return solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs, _GROUPS_DERIV_ENERGY)
 
 
 # ---------------------------------------------------------------------------
@@ -153,9 +138,7 @@ def build_local_system_osb(
 
     p_arr = _poly_basis(xi_bonds, delta)
     dph = _dphi_all(xi_bonds)
-    p_eff = np.empty_like(p_arr)
-    p_eff[:, 0] = 1.0
-    p_eff[:, 1:] = 0.5 * p_arr[:, 1:]
+    p_eff = bond_averaged(p_arr)
 
     ML[:n_F, :] = p_arr
 
@@ -172,7 +155,7 @@ def build_local_system_osb(
             ML[row, :] = (dph[:, k_idx] ** 2 * xi_ell_sq_over_r2 * volumes) @ p_eff
 
     targets = np.concatenate([d_star, e_star])
-    return _solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs, _GROUPS_DERIV_ENERGY)
+    return solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs, _GROUPS_DERIV_ENERGY)
 
 
 # ---------------------------------------------------------------------------
@@ -195,9 +178,7 @@ def build_local_system_nosb(
 
     p_arr = _poly_basis(xi_bonds, delta)
     dph = _dphi_all(xi_bonds)
-    p_eff = np.empty_like(p_arr)
-    p_eff[:, 0] = 1.0
-    p_eff[:, 1:] = 0.5 * p_arr[:, 1:]
+    p_eff = bond_averaged(p_arr)
 
     ML[:n_F, :] = p_arr
 
@@ -206,4 +187,4 @@ def build_local_system_nosb(
             row = n_F + b * 9 + k_idx
             ML[row, :] = (xi_bonds[:, b] * dph[:, k_idx] * volumes) @ p_eff
 
-    return _solve_local(ML, n_star, n_F, tikhonov_rel, tikhonov_abs, _GROUPS_DERIV_ONLY)
+    return solve_local(ML, n_star, n_F, tikhonov_rel, tikhonov_abs, _GROUPS_DERIV_ONLY)

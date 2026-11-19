@@ -37,6 +37,17 @@ import numpy as np
 ROUNDOFF_RTOL = 1e-10
 
 
+def bond_averaged(p: np.ndarray) -> np.ndarray:
+    """Polynomial image of the bond-averaged weight (w_i + w_j) / 2.
+
+    With the weight field w(xi) = p(xi) . a around node i, a bond to xi_j
+    carries (w(0) + w(xi_j)) / 2 = (p(0) + p(xi_j)) / 2 . a, and p(0) = (1, 0, ..., 0).
+    """
+    p_eff = 0.5 * p
+    p_eff[:, 0] = 1.0
+    return p_eff
+
+
 def solve_local(
     ML: np.ndarray,
     targets: np.ndarray,

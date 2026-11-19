@@ -1,6 +1,5 @@
 """Tests for analytical ball moment functions."""
 import math
-import pytest
 from perifit.core.moments import (
     ball_moment, ball_moment_over_r2, full_ball_weighted_volume,
 )

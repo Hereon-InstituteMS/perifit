@@ -34,7 +34,8 @@ from perifit.core.moments import (
 from perifit.core.targets import build_targets_bb, build_targets_osb
 from perifit.core.weights import compute_weights, build_families
 from perifit.core.moments_2d import disc_moment, full_disc_area
-from perifit.core.weights_2d import compute_weights_2d, build_families_2d
+from perifit.core.families import build_families as build_families_2d
+from perifit.core.weights_2d import compute_weights_2d
 
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,6 @@ import subprocess
 import sys
 
 import numpy as np
-import pytest
 
 
 def _run_perifit(*args, timeout=180):
@@ -67,5 +66,15 @@ class TestCLI:
         r = _run_perifit("--mesh", str(mesh), "--method", "bond", "--outdir", str(tmp_path))
         assert r.returncode != 0 and "dim=2" in r.stderr
         r = _run_perifit("--mesh", str(mesh), "--method", "bond", "--dim", "2",
+                         "--horizon", "0.3", "--outdir", str(tmp_path))
+        assert r.returncode == 0, r.stderr
+
+    def test_planar_mesh_nodal_defaults_to_bond_based(self, tmp_path):
+        """--method nodal on a 2-D mesh must not pick the 3-D-only state-based model."""
+        s = np.arange(12) * 0.1
+        X, Y = np.meshgrid(s, s, indexing="ij")
+        mesh = tmp_path / "plate.csv"
+        np.savetxt(mesh, np.column_stack([X.ravel(), Y.ravel(), np.zeros(X.size)]), delimiter=",")
+        r = _run_perifit("--mesh", str(mesh), "--method", "nodal", "--dim", "2",
                          "--horizon", "0.3", "--outdir", str(tmp_path))
         assert r.returncode == 0, r.stderr

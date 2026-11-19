@@ -17,7 +17,7 @@ def _plate(n=17, dx=1 / 16):
 class TestSurfaceCorrection:
     def test_method_is_required(self):
         c, V, d = _plate()
-        with pytest.raises(ValueError, match="method='nodal' or method='bond'"):
+        with pytest.raises(ValueError, match="choose the surface correction explicitly"):
             perifit.surface_correction(c, V, d)
         with pytest.raises(ValueError, match="unknown method"):
             perifit.surface_correction(c, V, d, method="magic")

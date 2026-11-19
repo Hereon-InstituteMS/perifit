@@ -3,6 +3,9 @@
 Each node contributes one row  ``w_i - sum_j coupling_ij w_j = beta_i``.  The
 rows are collected as COO triplets (vectorised, no per-entry sparse updates)
 and the sparse non-symmetric system is solved with BiCGSTAB from ``w = 1``.
+
+:func:`nodal_weights_from_local` is the driver shared by the 1-D, 2-D and 3-D
+engines: it only needs the full-horizon targets and the local-system builder.
 """
 from __future__ import annotations
 
@@ -14,6 +17,40 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import bicgstab
 
 LocalSolver = Callable[[int, np.ndarray], Optional[tuple]]
+
+
+def nodal_weights_from_local(
+    points: np.ndarray,
+    volumes: np.ndarray,
+    horizon: float,
+    build: Callable[..., Optional[tuple]],
+    targets: tuple[np.ndarray, ...],
+    families: Sequence[Sequence[int]] | None = None,
+    tol: float = 1e-10,
+    max_iter: int = 5000,
+    tikhonov_rel: float = 1e-8,
+    tikhonov_abs: float = 1e-12,
+    verbose: bool = False,
+    label: str = "",
+) -> np.ndarray:
+    """Nodal weights from a local-system builder.
+
+    ``build(xi_bonds, neighbour_volumes, horizon, *targets, tikhonov_rel,
+    tikhonov_abs)`` returns ``(beta_i, coupling)`` or ``None`` for one node.
+    """
+    from .families import build_families
+
+    if families is None:
+        families = build_families(points, horizon)
+    if verbose:
+        print(f"perifit nodal weights  {label}  N={len(points):,d}  delta={horizon:.4g}")
+
+    def local(i: int, nbrs: np.ndarray):
+        return build(points[nbrs] - points[i], volumes[nbrs], horizon, *targets,
+                     tikhonov_rel, tikhonov_abs)
+
+    return solve_weight_system(len(points), families, local, tol=tol, max_iter=max_iter,
+                               verbose=verbose)
 
 
 def solve_weight_system(
