@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ._lsq import solve_local
+
 NP = 10  # polynomial basis dimension
 
 
@@ -57,35 +59,8 @@ def _solve_local(
     tikhonov_rel: float,
     tikhonov_abs: float,
 ) -> tuple[float, np.ndarray]:
-    """Per-row normalised, Tikhonov-regularised pseudoinverse solve."""
-    nr = np.linalg.norm(ML, axis=1)
-    valid = nr > 1e-20
-    ML_norm = ML.copy()
-    ML_norm[valid] /= nr[valid, np.newaxis]
-
-    MtM = ML_norm.T @ ML_norm
-    max_diag = float(np.max(np.abs(np.diag(MtM))))
-    lam = max(tikhonov_abs, tikhonov_rel * max_diag)
-    MtM_reg = MtM + lam * np.eye(NP)
-    try:
-        MtM_inv = np.linalg.solve(MtM_reg, np.eye(NP))
-    except np.linalg.LinAlgError:
-        MtM_inv = np.linalg.pinv(MtM_reg)
-    Mplus = MtM_inv @ ML_norm.T
-
-    n_op = ML.shape[0] - n_F
-    beta_i = 0.0
-    for k_op in range(n_op):
-        row = n_F + k_op
-        if valid[row]:
-            beta_i += Mplus[0, row] * targets[k_op] / nr[row]
-
-    coupling = np.zeros(n_F)
-    for jj in range(n_F):
-        if valid[jj]:
-            coupling[jj] = Mplus[0, jj] / nr[jj]
-
-    return beta_i, coupling
+    """Per-row normalised, Tikhonov-regularised solve (see :mod:`perifit.core._lsq`)."""
+    return solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs)
 
 
 # ---------------------------------------------------------------------------

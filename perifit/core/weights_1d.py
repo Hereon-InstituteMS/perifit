@@ -1,30 +1,21 @@
 """1-D global weight assembly: solve (I - A) w = b with BiCGSTAB."""
 from __future__ import annotations
 
-import inspect
-import warnings
 from typing import Sequence
 
 import numpy as np
-from scipy.sparse import lil_matrix
-from scipy.sparse.linalg import bicgstab
-from scipy.spatial import KDTree
 
-from .local_system_1d import build_local_system_bb_1d, NP_1D
+from ._assembly import solve_weight_system
+from .families import build_families
+from .local_system_1d import build_local_system_bb_1d
 from .targets_1d import build_targets_bb_1d
-
-
-_BICGSTAB_TOL_KWARG = "rtol" if "rtol" in inspect.signature(bicgstab).parameters else "tol"
 
 
 def build_families_1d(
     coords: np.ndarray, horizon: float, tol: float = 1e-12
 ) -> list[list[int]]:
-    """KDTree-based 1D neighbour search; cutoff = ``horizon + tol``."""
-    pts = np.asarray(coords, dtype=np.float64).reshape(-1, 1)
-    tree = KDTree(pts)
-    pairs = tree.query_ball_tree(tree, r=horizon + tol)
-    return [[j for j in pairs[i] if j != i] for i in range(len(pts))]
+    """Per-node neighbour lists within ``horizon + tol`` (alias of :func:`build_families`)."""
+    return build_families(np.asarray(coords, dtype=np.float64).reshape(-1), horizon, tol)
 
 
 def compute_weights_1d(
@@ -91,56 +82,9 @@ def compute_weights_1d(
     if verbose:
         print("  Assembling global weight system ...", end=" ", flush=True)
 
-    A = lil_matrix((N, N), dtype=np.float64)
-    b = np.zeros(N, dtype=np.float64)
-    n_deg = 0
+    def local(i: int, nbrs: np.ndarray):
+        return build_local_system_bb_1d(coords[nbrs] - coords[i], volumes[nbrs], horizon,
+                                        d_star, e_star, row_norm, tikhonov_rel, tikhonov_abs)
 
-    for i in range(N):
-        nbrs = list(families[i])
-        if not nbrs:
-            A[i, i] = 1.0
-            b[i] = 1.0
-            n_deg += 1
-            continue
-        xi_bonds = coords[nbrs] - coords[i]
-        result = build_local_system_bb_1d(
-            xi_bonds, volumes[nbrs], horizon, d_star, e_star,
-            row_norm, tikhonov_rel, tikhonov_abs)
-        if result is None:
-            A[i, i] = 1.0
-            b[i] = 1.0
-            n_deg += 1
-            continue
-        beta_i, coupling = result
-        A[i, i] = 1.0
-        for jj, j in enumerate(nbrs):
-            a_ij = coupling[jj]
-            if abs(a_ij) > 1e-15:
-                A[i, j] -= a_ij
-        b[i] = beta_i
-
-    if verbose:
-        print(f"done.  ({n_deg} degenerate nodes set to w=1)")
-        print("  Solving global system (BiCGSTAB) ...", end=" ", flush=True)
-
-    w0 = np.ones(N, dtype=np.float64)
-    w, info = bicgstab(A.tocsr(), b, x0=w0, maxiter=max_iter, **{_BICGSTAB_TOL_KWARG: tol})
-
-    if info < 0:
-        raise RuntimeError(f"BiCGSTAB failed with info={info}.")
-
-    if verbose:
-        if info == 0:
-            print("converged.")
-        elif info > 0:
-            print(f"info={info} (no convergence)")
-        else:
-            print(f"info={info} (illegal input)")
-        print(f"  Weights: min={w.min():.4f}  max={w.max():.4f}  mean={w.mean():.4f}")
-
-    if info > 0:
-        warnings.warn(
-            f"BiCGSTAB did not converge after {info} iterations.",
-            RuntimeWarning, stacklevel=2)
-
+    w = solve_weight_system(N, families, local, tol=tol, max_iter=max_iter, verbose=verbose)
     return w
