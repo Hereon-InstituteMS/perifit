@@ -1,17 +1,15 @@
 """End-to-end tests for the weight computation and output writers."""
 import math
 import tempfile
-from pathlib import Path
 
 import numpy as np
 import pytest
 from scipy.spatial import KDTree
 
-from perifit import compute_weights, write_weights
-from perifit.core.targets import build_targets_osb
-from perifit.core.moments import full_ball_weighted_volume
+from perifit import write_weights
 from perifit.core.local_system import build_local_system_osb
-from perifit.core.weights import build_families
+from perifit.core.targets import build_targets_osb
+from perifit.core.weights import build_families, compute_weights
 
 
 def _cube_mesh(dx: float):
@@ -125,11 +123,13 @@ class TestComputeWeights:
     """Tests on a small 5x5x5 = 125 node mesh (fast)."""
 
     @pytest.fixture(scope='class')
-    def small_mesh(self):
+    @classmethod
+    def small_mesh(cls):
         return _cube_mesh(dx=0.2)
 
     @pytest.fixture(scope='class')
-    def weights(self, small_mesh):
+    @classmethod
+    def weights(cls, small_mesh):
         coords, volumes = small_mesh
         delta = 2 * 0.2  # m=2
         families = build_families(coords, delta)
@@ -233,7 +233,8 @@ class TestComputeWeights:
 
 class TestWriters:
     @pytest.fixture(scope='class')
-    def small_result(self):
+    @classmethod
+    def small_result(cls):
         coords, volumes = _cube_mesh(dx=0.2)
         delta = 0.4
         families = build_families(coords, delta)

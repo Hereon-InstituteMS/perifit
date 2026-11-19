@@ -1,3 +1,4 @@
+"""Diagnostics of nodal weights: negative values and statistical outliers."""
 from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np

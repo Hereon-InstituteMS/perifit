@@ -22,7 +22,7 @@ import os
 # Allow running from the repository root without installing the package
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from perifit import compute_weights, write_weights
+from perifit import nodal_weights, write_weights
 
 
 # ---------------------------------------------------------------------------
@@ -60,9 +60,9 @@ if __name__ == '__main__':
     print(f"Mesh: {N:,d} nodes  ({round(N**(1/3))}^3 grid)")
 
     # Compute weights
-    weights = compute_weights(
+    weights = nodal_weights(
         coords, volumes,
-        horizon=delta,
+        delta,
         verbose=True,
     )
 
@@ -101,4 +101,4 @@ if __name__ == '__main__':
     print(f"Weights — min: {weights.min():.4f}  max: {weights.max():.4f}"
           f"  mean: {weights.mean():.4f}")
     print(f"\nInterior weight (node near centre): {weights[centre_idx]:.6f}"
-          f"  (should be ≈ 1.0)")
+          "  (it also corrects the grid quadrature of the bulk)")

@@ -9,12 +9,17 @@ Each model produces 54 target equations per node:
   - 27 derivative rows: 3 directions (x, y, z) x 9 test monomials
   - 27 energy rows:     3 lift directions (x, y, z) x 9 test monomials
 
-The test monomials (degree 1 + 2) in local coordinates xi/delta are:
+The test monomials (degree 1 + 2) of the bond vector xi are:
     xi_x, xi_y, xi_z, xi_x^2, xi_x*xi_y, xi_x*xi_z, xi_y^2, xi_y*xi_z, xi_z^2
 
-All target arrays are returned with material constants set to 1: those
-constants cancel after per-row normalisation in the local LS, so the weights
-are purely geometric.
+They are used unscaled: a row and its target share the same power of the
+length unit, which cancels in the per-row normalisation of the local solve
+(rows of different degree form separate round-off groups, see
+perifit.core._lsq).  Material constants are set to 1 for the same reason, so
+the weights are purely geometric.
+
+The correspondence (NOSB) targets are kept as a building block; NOSB is not
+exposed through the public API.
 
 Authors: Arman Shojaei & Alexander Hermann
          Helmholtz-Zentrum Hereon, Geesthacht, Germany.

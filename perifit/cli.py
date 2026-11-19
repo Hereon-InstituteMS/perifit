@@ -3,8 +3,9 @@ Command-line interface for perifit.
 
 Usage
 -----
-    # Minimal: auto-infer dx and horizon (m=3 default)
-    perifit --mesh cube.csv
+    # Choose the method explicitly: nodal weights or bond weights
+    perifit --mesh cube.csv --method nodal
+    perifit --mesh cube.csv --method bond --output csv,npz
 
     # Explicit horizon-to-spacing ratio
     perifit --mesh cube.csv --m 4
@@ -25,7 +26,7 @@ Usage
     perifit --mesh cube.csv --clean --threshold-sigma 2.0
 
     # Built-in demo (no mesh needed)
-    perifit --demo
+    perifit --demo --method nodal
 
     perifit --help
 """
@@ -34,16 +35,7 @@ from __future__ import annotations
 
 import argparse
 
-
-# Map CLI model names to the core API model codes
-_MODEL_MAP = {
-    'bb': 'bb',
-    'osb': 'osb',
-    'bb_pd': 'bb',
-    'osb_pd': 'osb',
-    'bond_based': 'bb',
-    'state_based': 'osb',
-}
+import numpy as np
 
 
 def _infer_dx(coords):
@@ -59,9 +51,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog='perifit',
         description=(
-            'Compute peridynamic surface correction weights for any 3-D mesh '
-            'and export to CSV, DAT, VTK, Peridigm, or PeriLab format.\n\n'
-            'Supports bond-based (BB) and ordinary state-based (OSB) PD models.\n\n'
+            'Compute peridynamic surface corrections for a mesh and export them.\n\n'
+            'Two methods (choose one with --method):\n'
+            '  nodal : one weight per node (BB or OSB model); CSV, DAT, VTK, Peridigm, PeriLab\n'
+            '  bond  : one weight per bond (BB model); CSV (i,j,beta) or NPZ\n\n'
             'Nodal spacing (dx) and volumes are inferred automatically from '
             'the median nearest-neighbour distance (assumes a regular grid). '
             'The horizon is delta = m * dx when --horizon is not given.'
@@ -70,29 +63,32 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog="""
 Examples
 --------
-  # Minimal -- auto-infer everything (m=3 default)
-  perifit --mesh cube.csv
+  # Nodal weights (one per node), auto-inferred dx and horizon (m=3 default)
+  perifit --mesh cube.csv --method nodal
 
-  # Bond-based PD
-  perifit --mesh cube.csv --model bb
+  # Bond weights (one per bond), bond-based PD
+  perifit --mesh cube.csv --method bond --output csv,npz
+
+  # A planar mesh stored as (x, y, 0)
+  perifit --mesh plate.csv --method bond --dim 2
 
   # Specify horizon-to-spacing ratio
-  perifit --mesh cube.csv --m-ratio 4 --output csv,vtk
+  perifit --mesh cube.csv --method nodal --m-ratio 4 --output csv,vtk
 
   # Provide explicit horizon
-  perifit --mesh solid.exo --horizon 0.005 --output peridigm
+  perifit --mesh solid.exo --method nodal --horizon 0.005 --output peridigm
 
   # Gmsh mesh (requires meshio) for PeriLab
-  perifit --mesh part.msh --output perilab,csv --stem part_weights
+  perifit --mesh part.msh --method nodal --output perilab,csv --stem part_weights
 
   # Diagnose mesh quality after computing weights
-  perifit --mesh cube.csv --diagnose
+  perifit --mesh cube.csv --method nodal --diagnose
 
   # Clean mesh (remove negative/outlier weight nodes)
-  perifit --mesh cube.csv --clean --threshold-sigma 2.0
+  perifit --mesh cube.csv --method nodal --clean --threshold-sigma 2.0
 
   # Built-in 1000-node cube demo
-  perifit --demo
+  perifit --demo --method bond
 """,
     )
 
@@ -102,13 +98,18 @@ Examples
                         '.csv, .dat, .txt, .npy, .npz, .vtk, .vtu, '
                         '.exo, .g, .msh, .inp')
 
-    # Model selection
-    p.add_argument('--model', default='osb',
+    # Method and model selection
+    p.add_argument('--method', choices=['nodal', 'bond'], default=None,
+                   help='Surface correction (required): nodal = one weight per node, '
+                        'bond = one weight per bond.')
+    p.add_argument('--model', default=None,
                    choices=['osb', 'bb', 'osb_pd', 'bb_pd',
                             'state_based', 'bond_based'],
-                   help='PD model: osb (LPS/state-based), bb (bond-based). '
-                        'Legacy aliases: osb_pd, bb_pd, state_based, bond_based. '
-                        'Default: osb.')
+                   help='PD model: osb (LPS/state-based, nodal only), bb (bond-based). '
+                        'Default: osb for --method nodal, bb for --method bond.')
+    p.add_argument('--dim', type=int, choices=[1, 2, 3], default=None,
+                   help='Spatial dimension of the mesh; needed when a planar mesh is '
+                        'stored with a constant z column.')
 
     # Horizon / discretisation
     g = p.add_argument_group('horizon / discretisation')
@@ -135,12 +136,12 @@ Examples
     # Output
     g3 = p.add_argument_group('output')
     g3.add_argument('--output', default='csv',
-                    help='Comma-separated list of output formats: '
-                         'csv, dat, vtk, peridigm, perilab  (default: csv).')
+                    help='Comma-separated list of output formats. nodal: csv, dat, vtk, '
+                         'peridigm, perilab; bond: csv, npz  (default: csv).')
     g3.add_argument('--outdir', default='./perifit_output',
                     help='Output directory (created if needed).')
-    g3.add_argument('--stem', default='perifit_weights',
-                    help='Base filename stem (without extension).')
+    g3.add_argument('--stem', default=None,
+                    help='Base filename stem (default: perifit_weights or perifit_bond_weights).')
 
     # Solver
     g4 = p.add_argument_group('solver')
@@ -152,9 +153,9 @@ Examples
     # Quality / cleaning
     g5 = p.add_argument_group('mesh quality')
     g5.add_argument('--diagnose', action='store_true',
-                    help='Print weight diagnostics (negative/outlier detection).')
+                    help='Print weight diagnostics (nodal weights only).')
     g5.add_argument('--clean', action='store_true',
-                    help='Remove flagged nodes and output a cleaned mesh.')
+                    help='Remove flagged nodes and recompute the weights (nodal weights only).')
     g5.add_argument('--threshold-sigma', type=float, default=2.0,
                     dest='threshold_sigma',
                     help='Outlier detection threshold in standard deviations '
@@ -173,50 +174,76 @@ Examples
     return p
 
 
+def _write(corr, coords, volumes, horizon, outdir, stem, formats):
+    """Write nodal weights (per-node formats) or bond weights (CSV/NPZ)."""
+    from perifit import write_bond_weights, write_weights
+    if corr.method == 'nodal':
+        return write_weights(coords, volumes, corr.node_weights, outdir=outdir, stem=stem,
+                             formats=formats, horizon=horizon)
+    return write_bond_weights(coords, volumes, corr.bonds, corr.factor, outdir=outdir, stem=stem,
+                              formats=formats, horizon=horizon)
+
+
+def _report(corr, quiet):
+    if not quiet and corr.method == 'bond':
+        b = corr.factor
+        print(f"  {len(b):,d} bond weights: min={b.min():.4f}  max={b.max():.4f}  "
+              f"median={np.median(b):.4f}")
+
+
 def main(argv=None):
-    import numpy as np
+    from perifit import get_example_mesh, load_mesh, surface_correction
+    from perifit.api import METHOD_HELP, canonical_model
 
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    from perifit import load_mesh, write_weights, get_example_mesh
-    from perifit.core.weights import compute_weights, build_families
-
-    # Resolve model name to core API code
-    model = _MODEL_MAP.get(args.model, args.model)
-
-    # --- Version mode ---
     if args.version:
         from perifit import show_version
         show_version()
         return
+    if args.method is None:
+        parser.error(METHOD_HELP.replace("  nodal :", "  --method nodal :")
+                     .replace("  bond  :", "  --method bond  :"))
+    method = args.method
+    if method == 'bond' and (args.diagnose or args.clean):
+        parser.error("--diagnose and --clean apply to nodal weights only")
+    if method == 'bond' and args.model and canonical_model(args.model) != 'bb':
+        parser.error("bond weights are defined for the bond-based model only (use --model bb)")
+    stem = args.stem or ('perifit_weights' if method == 'nodal' else 'perifit_bond_weights')
+    formats = [f.strip() for f in args.output.split(',')]
+
+    def model_for(dim):
+        """--model, else state-based for 3-D nodal weights and bond-based otherwise."""
+        if args.model:
+            return canonical_model(args.model)
+        return 'osb' if (method == 'nodal' and dim == 3) else 'bb'
+
+    def correct(coords, volumes, horizon, dim):
+        corr = surface_correction(coords, volumes, horizon, method=method,
+                                  model=model_for(dim or coords.shape[1]),
+                                  dim=dim, tol=args.tol, max_iter=args.max_iter,
+                                  verbose=not args.quiet)
+        _report(corr, args.quiet)
+        return corr
 
     # --- Demo mode ---
     if args.demo:
-        model_label = 'BB-PD' if model == 'bb' else 'OSB-PD'
+        label = {'nodal': 'nodal weights', 'bond': 'bond weights'}[method]
         print("=" * 60)
         print("perifit  --  built-in demo (1000-node cube)")
         print("  Mesh   : structured [0,1]^3, dx=0.1, 1000 nodes")
-        print("  Horizon: delta = 0.30  (m = 3, auto-inferred)")
-        print(f"  Model  : {model_label}")
+        print(f"  Horizon: delta = {args.m_ratio * 0.1:.2f}  (m = {args.m_ratio:g})")
+        print(f"  Method : {label}  ({'BB-PD' if model_for(3) == 'bb' else 'OSB-PD'})")
         print("=" * 60)
-        mesh_path = get_example_mesh()
-        coords, volumes = load_mesh(mesh_path)
-        dx = _infer_dx(coords)
-        horizon = args.m_ratio * dx
-        weights = compute_weights(coords, volumes, horizon,
-                                  model=model, verbose=not args.quiet)
-        outdir = args.outdir
-        paths = write_weights(
-            coords, volumes, weights,
-            outdir=outdir,
-            stem="demo_cube",
-            formats=["csv", "dat", "vtk"],
-        )
+        coords, volumes = load_mesh(get_example_mesh())
+        horizon = args.m_ratio * _infer_dx(coords)
+        corr = correct(coords, volumes, horizon, None)
+        demo_formats = ["csv", "dat", "vtk"] if method == 'nodal' else ["csv", "npz"]
+        paths = _write(corr, coords, volumes, horizon, args.outdir, "demo_cube", demo_formats)
         print("\nOutput files:")
         for fmt, path in paths.items():
             print(f"  [{fmt:6s}]  {path}")
-        print(f"\nOpen {outdir}/demo_cube.vtk in ParaView to visualise the weights.")
         return
 
     if args.mesh is None:
@@ -225,17 +252,11 @@ def main(argv=None):
     # --- Load mesh ---
     print(f"Loading mesh: {args.mesh}")
     coords, volumes = load_mesh(
-        args.mesh,
-        x_col=args.x_col,
-        y_col=args.y_col,
-        z_col=args.z_col,
-        delimiter=args.delimiter,
-        comment=args.comment,
-        horizon=args.horizon,
+        args.mesh, x_col=args.x_col, y_col=args.y_col, z_col=args.z_col,
+        delimiter=args.delimiter, comment=args.comment, horizon=args.horizon,
     )
     print(f"  {len(coords):,d} nodes loaded.")
 
-    # --- Infer horizon if not given ---
     if args.horizon is not None:
         horizon = args.horizon
     else:
@@ -244,42 +265,26 @@ def main(argv=None):
         if not args.quiet:
             print(f"  Auto-inferred dx={dx:.4g}, horizon={horizon:.4g} (m={args.m_ratio})")
 
-    # --- Compute weights ---
-    weights = compute_weights(
-        coords, volumes, horizon,
-        model=model,
-        tol=args.tol,
-        max_iter=args.max_iter,
-        verbose=not args.quiet,
-    )
+    # --- Compute ---
+    try:
+        corr = correct(coords, volumes, horizon, args.dim)
+    except ValueError as err:
+        parser.error(f"{err}  (command line: --dim N)")
 
-    # --- Diagnose ---
     if args.diagnose:
         from perifit.quality.diagnostics import diagnose_weights
-        diag = diagnose_weights(weights, threshold_sigma=args.threshold_sigma)
-        print(f"\n{diag.summary}")
+        print(f"\n{diagnose_weights(corr.node_weights, threshold_sigma=args.threshold_sigma).summary}")
 
-    # --- Clean ---
     if args.clean:
         from perifit.quality.cleaning import clean_mesh
-        result = clean_mesh(coords, volumes, weights,
-                            threshold_sigma=args.threshold_sigma)
+        result = clean_mesh(coords, volumes, corr.node_weights, threshold_sigma=args.threshold_sigma)
         print(f"\nCleaning: {result.original_n} -> {result.cleaned_n} nodes "
-              f"({result.original_n - result.cleaned_n} removed)")
-        coords = result.coords
-        volumes = result.volumes
-        weights = result.weights
+              f"({result.original_n - result.cleaned_n} removed); recomputing weights")
+        coords, volumes = result.coords, result.volumes
+        corr = correct(coords, volumes, horizon, args.dim)
 
-    # --- Write output ---
-    formats = [f.strip() for f in args.output.split(',')]
-    paths = write_weights(
-        coords, volumes, weights,
-        outdir=args.outdir,
-        stem=args.stem,
-        formats=formats,
-        horizon=weights.mean(),  # informational only
-    )
-
+    # --- Write ---
+    paths = _write(corr, coords, volumes, horizon, args.outdir, stem, formats)
     print("\nOutput files:")
     for fmt, path in paths.items():
         print(f"  [{fmt:10s}]  {path}")

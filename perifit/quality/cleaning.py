@@ -1,3 +1,4 @@
+"""Remove nodes with negative or outlying nodal weights from a mesh."""
 from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np

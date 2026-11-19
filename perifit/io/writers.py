@@ -9,11 +9,15 @@ Supported output formats
   peridigm — Peridigm-compatible nodal-data CSV + YAML input snippet
   perilab  — PeriLab HDF5 mesh file (requires h5py)
 
+Bond weights (one weight per bond) are written with :func:`write_bond_weights`
+as CSV (``i,j,beta``) or NumPy ``.npz`` (coords, volumes, bonds, beta).
+
 Usage
 -----
-    from perifit.io.writers import write_weights
+    from perifit.io.writers import write_weights, write_bond_weights
     write_weights(coords, volumes, weights, outdir='./output',
                   formats=['csv', 'vtk', 'peridigm'])
+    write_bond_weights(coords, volumes, bonds, beta, outdir='./output')
 """
 
 from __future__ import annotations
@@ -91,6 +95,57 @@ def write_weights(
             continue
         paths[fmt] = p
 
+    return paths
+
+
+BOND_FORMATS = ("csv", "npz")
+
+
+def write_bond_weights(
+    coords: np.ndarray,
+    volumes: np.ndarray,
+    bonds: np.ndarray,
+    beta: np.ndarray,
+    outdir: str | Path = '.',
+    stem: str = 'perifit_bond_weights',
+    formats: list[str] | str = ('csv', 'npz'),
+    *,
+    horizon: float | None = None,
+) -> dict[str, Path]:
+    """Write bond weights (one weight per bond).
+
+    Formats
+    -------
+    csv : one line per bond ``i,j,beta`` (0-based node indices)
+    npz : NumPy archive with ``coords``, ``volumes``, ``bonds``, ``beta`` (and ``horizon``)
+
+    Returns a dict mapping format name -> written path.
+    """
+    if isinstance(formats, str):
+        formats = [f.strip() for f in formats.split(',')]
+    unknown = [f for f in formats if f.lower() not in BOND_FORMATS]
+    if unknown:
+        raise ValueError(f"bond weights can be written as {BOND_FORMATS}, not {unknown}; "
+                         "per-node formats (vtk, peridigm, perilab, dat) need nodal weights")
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    bonds = np.asarray(bonds, dtype=np.int64)
+    beta = np.asarray(beta, dtype=np.float64)
+    paths = {}
+    for fmt in (f.lower() for f in formats):
+        if fmt == 'csv':
+            p = outdir / f"{stem}.csv"
+            header = f"perifit bond weights  N={len(coords)}  bonds={len(bonds)}"
+            if horizon is not None:
+                header += f"  horizon={horizon:.10g}"
+            np.savetxt(p, np.column_stack([bonds, beta]), delimiter=',',
+                       fmt=['%d', '%d', '%.12e'], header=header + "\ni,j,beta", comments='# ')
+        else:
+            p = outdir / f"{stem}.npz"
+            np.savez_compressed(p, coords=np.asarray(coords), volumes=np.asarray(volumes),
+                                bonds=bonds, beta=beta,
+                                horizon=np.nan if horizon is None else horizon)
+        paths[fmt] = p
     return paths
 
 
