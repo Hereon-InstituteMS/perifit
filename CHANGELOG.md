@@ -46,6 +46,7 @@ validated calibration per dimension.
 - `compute_weights`, `compute_weights_2d`, `compute_weights_1d` at package level are
   deprecated aliases of `nodal_weights` (removal in 4.0).
 - The correspondence (NOSB) model is no longer advertised as a public model.
-- SciPy ≥ 1.12 is required.
+- Python ≥ 3.10 and SciPy ≥ 1.12 are required (Python 3.9 reached end-of-life in October 2025
+  and is no longer available on GitHub's CI runners).
 
 To reproduce the figures of the IJNME 2026 paper exactly, use `perifit==2.0.1`.
