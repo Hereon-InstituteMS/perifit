@@ -1,65 +1,37 @@
-"""Per-node local least-squares system for 2-D BB-PD.
+"""Per-node local least-squares system of the 2-D nodal weights (bond-based PD).
 
-For each node i with neighbour cloud {x_j} and bond vectors xi_j = x_j - x_i,
-we solve a Tikhonov-regularised LS problem to determine the local weight
-polynomial contribution.
+For node i with bonds xi_j = x_j - x_i the stacked system has
 
-Polynomial basis (NP_2D = 6):
-    1, xn, yn, xn^2, xn*yn, yn^2     (xn = xi_x/delta, yn = xi_y/delta)
+  * n_F collocation rows  p(xi_j): complete quadratic basis in xi/delta (6 terms)
+  * 6 derivative rows     sum_j (xi_a/r^3) dphi_k V_j p_eff,  a in {x,y}, dphi_k quadratic
+  * 4 energy rows         sum_j 1/4 dphi_k^2 xi_l^2/r^3 V_j p_eff,  l in {x,y}, dphi_k linear
 
-Test functions dphi (5 monomials, degree 1+2):
-    x, y, x^2, xy, y^2
-
-Operator rows:
-  - 10 derivative: 2 (alpha) x 5 (dphi)
-  - 10 energy:     2 (ell)   x 5 (dphi)
-  Total: 20 operator rows
+with p_eff = (p(xi) + p(0)) / 2 (the bond-averaged weight).  See
+:mod:`perifit.core.targets_2d` for the choice of rows; the solve is the shared
+routine of :mod:`perifit.core._lsq`.
 """
 from __future__ import annotations
 
 import numpy as np
 
 from ._lsq import solve_local
+from .targets_2d import DERIV_TESTS, ENERGY_TESTS
 
-NP_2D = 6  # 2D polynomial basis dimension
-N_DPHI_2D = 5  # number of test functions (degree 1+2 monomials)
+NP_2D = 6                     # basis 1, xn, yn, xn^2, xn*yn, yn^2
+_N_D = 2 * len(DERIV_TESTS)   # 6 derivative rows
+_N_E = 2 * len(ENERGY_TESTS)  # 4 energy rows
+#: one test degree per block -> one round-off group per block
+_GROUPS = [list(range(_N_D)), list(range(_N_D, _N_D + _N_E))]
 
 
 def _poly_basis_2d(xi: np.ndarray, delta: float) -> np.ndarray:
-    """Evaluate 2D polynomial basis at bond vectors (N, 2)."""
-    xn = xi[:, 0] / delta
-    yn = xi[:, 1] / delta
-    return np.column_stack([
-        np.ones(len(xi)),
-        xn, yn,
-        xn * xn, xn * yn, yn * yn,
-    ])
+    """Complete quadratic basis in xi/delta evaluated at the bonds (N, 6)."""
+    xn, yn = xi[:, 0] / delta, xi[:, 1] / delta
+    return np.column_stack([np.ones(len(xi)), xn, yn, xn * xn, xn * yn, yn * yn])
 
 
-def _dphi_all_2d(xi: np.ndarray) -> np.ndarray:
-    """Returns the 5 monomials of degree 1+2 in xi, evaluated bond-wise.
-
-    dphi = [x, y, x^2, xy, y^2] (unscaled).
-    """
-    xx, yy = xi[:, 0], xi[:, 1]
-    return np.column_stack([
-        xx, yy,
-        xx * xx, xx * yy, yy * yy,
-    ])
-
-
-def _solve_local_2d(
-    ML: np.ndarray,
-    targets: np.ndarray,
-    n_F: int,
-    tikhonov_rel: float,
-    tikhonov_abs: float,
-) -> tuple[float, np.ndarray]:
-    """Per-row normalised, Tikhonov-regularised solve (see :mod:`perifit.core._lsq`)."""
-    # rows (direction, test k): k = 0, 1 degree 1, k = 2..4 degree 2; 10 derivative + 10 energy
-    groups = [[10 * b + 5 * a + k for a in range(2) for k in ks]
-              for b in range(2) for ks in ((0, 1), (2, 3, 4))]
-    return solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs, groups)
+def _monomial(xi: np.ndarray, delta: float, ex: tuple[int, int]) -> np.ndarray:
+    return (xi[:, 0] / delta) ** ex[0] * (xi[:, 1] / delta) ** ex[1]
 
 
 def build_local_system_bb_2d(
@@ -68,60 +40,32 @@ def build_local_system_bb_2d(
     delta: float,
     d_star: np.ndarray,
     e_star: np.ndarray,
-    c_bond: float = 1.0,
     tikhonov_rel: float = 1e-8,
     tikhonov_abs: float = 1e-12,
 ) -> tuple[float, np.ndarray] | None:
-    """Build 2D BB-PD local system (20 operator rows: 10 derivative + 10 energy).
-
-    Parameters
-    ----------
-    xi_bonds : (n_F, 2) bond vectors.
-    volumes : (n_F,) neighbour volumes.
-    delta : horizon radius.
-    d_star : (10,) derivative targets.
-    e_star : (10,) energy targets.
-    c_bond : micromodulus constant (energy rows are scaled by c_bond).
-    """
-    n_F = len(xi_bonds)
+    """Local system of node i; returns ``(beta_i, coupling)`` or ``None`` (too few bonds)."""
+    xi = np.asarray(xi_bonds, dtype=np.float64)
+    V = np.asarray(volumes, dtype=np.float64).reshape(-1)
+    n_F = len(xi)
     if n_F < NP_2D:
         return None
+    r3 = np.einsum("ij,ij->i", xi, xi) ** 1.5
 
-    n_op = 2 * N_DPHI_2D + 2 * N_DPHI_2D  # 10 + 10 = 20
-    n_rows = n_F + n_op
-    ML = np.zeros((n_rows, NP_2D))
-
-    r2 = np.einsum('ij,ij->i', xi_bonds, xi_bonds)
-    r = np.sqrt(r2)
-    r3 = r2 * r
-    r3_safe = np.where(r3 > 0.0, r3, 1.0)
-    mask = r3 > 0.0
-
-    p_arr = _poly_basis_2d(xi_bonds, delta)
-    # dphi = p(xi) - p(0), dropping the constant = p_arr[:, 1:] (delta-scaled)
-    dph = p_arr[:, 1:]
-
-    # p_eff = (p(xi) + p(0))/2; p(0) = [1, 0, 0, 0, 0, 0]
-    p_eff = np.empty_like(p_arr)
+    p = _poly_basis_2d(xi, delta)
+    p_eff = p.copy()
     p_eff[:, 0] = 1.0
-    p_eff[:, 1:] = 0.5 * p_arr[:, 1:]
+    p_eff[:, 1:] *= 0.5
 
-    # Collocation rows
-    ML[:n_F, :] = p_arr
+    rows = [p]
+    for a in range(2):
+        kernel = xi[:, a] / r3 * V
+        for ex in DERIV_TESTS:
+            rows.append(((kernel * _monomial(xi, delta, ex)) @ p_eff)[None, :])
+    for l in range(2):
+        kernel = 0.25 * xi[:, l] ** 2 / r3 * V
+        for ex in ENERGY_TESTS:
+            rows.append(((kernel * _monomial(xi, delta, ex) ** 2) @ p_eff)[None, :])
+    ML = np.vstack(rows)
 
-    # Derivative rows: M_D[alpha*5 + k, :] = sum_j (xi_alpha/r^3) * dphi_k * V_j * p_eff
-    for alpha in range(2):
-        xi_alpha_over_r3 = np.where(mask, xi_bonds[:, alpha] / r3_safe, 0.0)
-        for k_idx in range(N_DPHI_2D):
-            row = n_F + alpha * N_DPHI_2D + k_idx
-            ML[row, :] = (xi_alpha_over_r3 * dph[:, k_idx] * volumes) @ p_eff
-
-    # Energy rows: M_E[ell*5 + k, :] = c_bond * 0.25 * dphi_k^2 * xi_ell^2 / r^3 * V_j * p_eff
-    for ell in range(2):
-        xi_ell_sq_over_r3 = np.where(mask, xi_bonds[:, ell] ** 2 / r3_safe, 0.0)
-        for k_idx in range(N_DPHI_2D):
-            row = n_F + 2 * N_DPHI_2D + ell * N_DPHI_2D + k_idx
-            ML[row, :] = (c_bond * 0.25 * dph[:, k_idx] ** 2 * xi_ell_sq_over_r3 * volumes) @ p_eff
-
-    targets = np.concatenate([d_star, c_bond * e_star])
-    return _solve_local_2d(ML, targets, n_F, tikhonov_rel, tikhonov_abs)
+    targets = np.concatenate([d_star, e_star])
+    return solve_local(ML, targets, n_F, tikhonov_rel, tikhonov_abs, _GROUPS)
