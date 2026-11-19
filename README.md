@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero_dark.png">
-    <img src="docs/images/hero.png" width="100%" alt="Truncated peridynamic horizons near a corner, the nodal-weight field that corrects them, and the bond weights of a corner, an edge and an interior node">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Hereon-InstituteMS/perifit/v3.0.0/docs/images/hero_dark.png">
+    <img src="https://raw.githubusercontent.com/Hereon-InstituteMS/perifit/v3.0.0/docs/images/hero.png" width="100%" alt="Truncated peridynamic horizons near a corner, the nodal-weight field that corrects them, and the bond weights of a corner, an edge and an interior node">
   </picture>
 </p>
 
@@ -16,7 +16,7 @@
   <a href="https://github.com/Hereon-InstituteMS/perifit/actions"><img src="https://github.com/Hereon-InstituteMS/perifit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://pypi.org/project/perifit/"><img src="https://img.shields.io/pypi/v/perifit?style=flat" alt="PyPI"></a>
   <a href="https://pypi.org/project/perifit/"><img src="https://img.shields.io/pypi/pyversions/perifit?style=flat" alt="Python"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT license"></a>
+  <a href="https://github.com/Hereon-InstituteMS/perifit/blob/v3.0.0/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT license"></a>
   <a href="https://doi.org/10.1002/nme.70385"><img src="https://img.shields.io/badge/DOI-10.1002%2Fnme.70385-blue" alt="paper DOI"></a>
 </p>
 
@@ -97,15 +97,15 @@ horizon δ = 4 Δx and no partial-volume correction:
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/setups_dark.png">
-    <img src="docs/images/setups.png" width="100%" alt="Sketches of the three benchmarks: a 1-D bar under tension, a 2-D cantilever with parabolic end shear, and a 3-D circular cantilever">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Hereon-InstituteMS/perifit/v3.0.0/docs/images/setups_dark.png">
+    <img src="https://raw.githubusercontent.com/Hereon-InstituteMS/perifit/v3.0.0/docs/images/setups.png" width="100%" alt="Sketches of the three benchmarks: a 1-D bar under tension, a 2-D cantilever with parabolic end shear, and a 3-D circular cantilever">
   </picture>
 </p>
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/convergence_dark.png">
-    <img src="docs/images/convergence.png" width="100%" alt="Displacement error versus grid spacing for standard PD, nodal weights and bond weights in 1-D, 2-D and 3-D">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Hereon-InstituteMS/perifit/v3.0.0/docs/images/convergence_dark.png">
+    <img src="https://raw.githubusercontent.com/Hereon-InstituteMS/perifit/v3.0.0/docs/images/convergence.png" width="100%" alt="Displacement error versus grid spacing for standard PD, nodal weights and bond weights in 1-D, 2-D and 3-D">
   </picture>
 </p>
 
@@ -121,8 +121,8 @@ grid, which keeps them accurate for every horizon ratio:
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/horizon_ratio_dark.png">
-    <img src="docs/images/horizon_ratio.png" width="560" alt="Error of the 2-D cantilever at m = 3, 4, 5 for the three models">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Hereon-InstituteMS/perifit/v3.0.0/docs/images/horizon_ratio_dark.png">
+    <img src="https://raw.githubusercontent.com/Hereon-InstituteMS/perifit/v3.0.0/docs/images/horizon_ratio.png" width="560" alt="Error of the 2-D cantilever at m = 3, 4, 5 for the three models">
   </picture>
 </p>
 
@@ -130,8 +130,8 @@ In 3-D the correction lives in a thin layer along the whole surface of the bar:
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/weights_3d_dark.png">
-    <img src="docs/images/weights_3d.png" width="100%" alt="Nodal weights and bond weights on a longitudinal section and a cross-section of the circular bar">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Hereon-InstituteMS/perifit/v3.0.0/docs/images/weights_3d_dark.png">
+    <img src="https://raw.githubusercontent.com/Hereon-InstituteMS/perifit/v3.0.0/docs/images/weights_3d.png" width="100%" alt="Nodal weights and bond weights on a longitudinal section and a cross-section of the circular bar">
   </picture>
 </p>
 
@@ -169,7 +169,7 @@ spacing. Planar meshes stored as `(x, y, 0)` need `--dim 2`. Try
   `compute_weights`, `compute_weights_2d` and `compute_weights_1d` still work but are deprecated.
 - 1-D and 2-D nodal weights use a revised, validated calibration, and 3-D weights no
   longer depend on round-off or on the length unit; values differ from v2 —
-  see [CHANGELOG.md](CHANGELOG.md). To reproduce the figures of the IJNME paper
+  see [CHANGELOG.md](https://github.com/Hereon-InstituteMS/perifit/blob/v3.0.0/CHANGELOG.md). To reproduce the figures of the IJNME paper
   exactly, install `perifit==2.0.1`.
 - The CLI requires `--method`.
 
