@@ -1,258 +1,194 @@
-# perifit
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero_dark.png">
+    <img src="docs/images/hero.png" width="100%" alt="Truncated peridynamic horizons near a corner, the nodal-weight field that corrects them, and the bond weights of a corner, an edge and an interior node">
+  </picture>
+</p>
 
-**Surface correction weights for 3-D peridynamics (state-based LPS, bond-based, and correspondence NOSB-PD) with mesh quality diagnostics**
+<h1 align="center">perifit</h1>
 
-[![CI](https://github.com/Hereon-InstituteMS/perifit/actions/workflows/ci.yml/badge.svg)](https://github.com/Hereon-InstituteMS/perifit/actions)
-[![PyPI version](https://img.shields.io/pypi/v/perifit?style=flat)](https://pypi.org/project/perifit/)
-[![Python](https://img.shields.io/pypi/pyversions/perifit?style=flat)](https://pypi.org/project/perifit/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<p align="center">
+  <b>Surface corrections for peridynamics — one weight per node, or one weight per bond.</b><br>
+  1-D · 2-D · 3-D &nbsp;|&nbsp; any solver &nbsp;|&nbsp; purely geometric
+</p>
 
-`perifit` computes optimised nodal influence weights that eliminate
-the **surface/boundary effect** in three-dimensional peridynamics.
-
-Supported models:
-| Model | CLI flag | Operator rows | Notes |
-|-------|----------|---------------|-------|
-| **OSB-PD** (ordinary state-based, LPS) | `--model osb` | 109 | Poisson-unrestricted |
-| **BB-PD** (bond-based) | `--model bb` | 54 | ν = 1/4 in 3D |
-| **NOSB-PD** (non-ordinary, correspondence) | `--model nosb` | 36 | Material-independent |
-
-Provide any 3-D mesh → get per-node weights in formats ready for
-**Peridigm**, **PeriLab**, or generic CSV / DAT / VTK.
-
-Lower-dimensional BB-PD discretisations are supported through
-`compute_weights_2d` and `compute_weights_1d`.
+<p align="center">
+  <a href="https://github.com/Hereon-InstituteMS/perifit/actions"><img src="https://github.com/Hereon-InstituteMS/perifit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pypi.org/project/perifit/"><img src="https://img.shields.io/pypi/v/perifit?style=flat" alt="PyPI"></a>
+  <a href="https://pypi.org/project/perifit/"><img src="https://img.shields.io/pypi/pyversions/perifit?style=flat" alt="Python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT license"></a>
+  <a href="https://doi.org/10.1002/nme.70385"><img src="https://img.shields.io/badge/DOI-10.1002%2Fnme.70385-blue" alt="paper DOI"></a>
+</p>
 
 ---
 
-## Background
+## What it does
 
-In peridynamics, nodes near the domain boundary have truncated horizon
-neighbourhoods. This reduces their effective stiffness and causes
-displacement errors that do **not** vanish under mesh refinement at fixed
-horizon-to-spacing ratio *m = δ/Δx* — the so-called *surface effect*.
+In peridynamics every node interacts with all neighbours inside its horizon δ.
+Near free surfaces, cracks and voids part of that horizon is missing, so the
+material there is **too soft** — and the error does not go away when the grid
+is refined. perifit computes, once and from the geometry alone, a correction
+that makes every truncated horizon behave like a full one:
 
-`perifit` implements an operator-matching framework for state-based (LPS), bond-based
-(solid), and correspondence (NOSB-PD) models. For each node, a local overdetermined least-squares
-problem is solved to find a scalar influence weight *wᵢ* such that the
-truncated neighbourhood operators reproduce their full-sphere continuum
-counterparts. The per-node weights are coupled through a global sparse
-linear system solved by BiCGSTAB.
+| | **nodal weights** | **bond weights** |
+|---|---|---|
+| what you get | one weight `w_i` per node | one weight `β_b` per bond |
+| how a bond is scaled | `(w_i + w_j) / 2` | `β_b` |
+| fitted to | derivative and energy operators of a full horizon | the energy moments of a full horizon, at every node |
 
-> **The weights are purely geometric.**
-> Material constants (*G* for state-based, *c* for bond-based) appear as
-> common prefactors in both the local ML matrix and the analytical targets
-> and cancel exactly after per-row normalisation. For the correspondence
-> model, the operator rows are material-independent by construction (no
-> radial singularity, no constitutive constants). Consequently, *E*, *ν*,
-> and any other material constant are **not required** — only the mesh
-> geometry and the horizon matter.
+Both need only the node positions, the nodal volumes and the horizon — no
+material constants.
 
----
-
-## Results
-
-### Convergence and preprocessing time (state-based LPS)
-
-![Convergence and timing](docs/images/readme_convergence_timing.png)
-
-**(a)** Displacement error convergence for the **state-based LPS** model on a unit bar under uniaxial tension (*m* = 3).
-The corrected weights (solid lines) recover first-order convergence across all
-Poisson ratios, while standard LPS (dashed) stagnates due to the surface effect.
-**(b)** Weight computation time scales near-linearly with the number of nodes.
-
-### Mesh quality diagnostics (state-based LPS)
-
-![Mesh cleaning](docs/images/readme_cleaning.png)
-
-**(a)** Rocker-arm geometry (1,699 nodes) colored by **LPS** weight values.
-**(b)** Outlier nodes flagged by the built-in diagnostics (2*σ* threshold).
-**(c)** Cleaned mesh after removing the 69 flagged nodes — weight distribution
-is now uniform and well-conditioned.
-
----
-
-## Installation
+## Install
 
 ```bash
 pip install perifit
 ```
 
-With optional dependencies for specific mesh formats:
-
-```bash
-pip install "perifit[hdf5]"     # PeriLab HDF5 output
-pip install "perifit[exodus]"   # Exodus mesh input
-pip install "perifit[gmsh]"     # Gmsh / Abaqus / VTU input
-pip install "perifit[all]"      # everything
-```
-
----
+Optional readers/writers: `pip install "perifit[all]"` (VTU, Exodus, Gmsh/Abaqus input; PeriLab HDF5 output).
 
 ## Quick start
 
-### Built-in demo (no mesh needed)
-
-```bash
-perifit --demo
-```
-
-Runs on the bundled 1000-node structured cube mesh and writes
-`csv`, `dat`, and `vtk` output to `./perifit_output/`.
-
-### Python API
-
 ```python
 import numpy as np
-from perifit import compute_weights, write_weights
+import perifit
 
-# Build your mesh (or load it — see below)
-dx = 0.05
-xs = np.arange(dx / 2, 1.0, dx)
-gx, gy, gz = np.meshgrid(xs, xs, xs, indexing='ij')
-coords = np.column_stack([gx.ravel(), gy.ravel(), gz.ravel()])
+dx = 1 / 40                                            # a unit square, horizon δ = 4 dx
+s = np.arange(0, 1 + dx / 2, dx)
+coords = np.stack(np.meshgrid(s, s, indexing="ij"), -1).reshape(-1, 2)
+volumes = np.full(len(coords), dx**2)
 
-# OSB-PD / LPS (default model is "bb"):
-volumes = np.full(len(coords), dx**3)
-weights = compute_weights(coords, volumes, horizon=3 * dx, model='osb')
-
-# BB-PD:
-weights = compute_weights(coords, volumes, horizon=3 * dx, model='bb')
-
-# NOSB-PD (material-independent):
-weights = compute_weights(coords, volumes, horizon=3 * dx, model='nosb')
-
-# Export to any format
-write_weights(
-    coords, volumes, weights,
-    outdir='./output',
-    formats=['csv', 'vtk', 'peridigm', 'perilab'],
-)
+corr = perifit.surface_correction(coords, volumes, 4 * dx, method="bond")   # or "nodal"
+# corr.bonds[b] = (i, j);  multiply the stiffness of bond b by corr.factor[b]
 ```
 
-### Load from a mesh file
+The two methods are also available directly:
 
 ```python
-from perifit import load_mesh, compute_weights, write_weights
-
-# Supported: .csv .dat .txt .npy .npz .vtk .vtu .exo .g .msh .inp
-coords, volumes = load_mesh('my_mesh.exo')
-
-weights = compute_weights(coords, volumes, horizon=3 * dx, model='osb')
-
-write_weights(coords, volumes, weights,
-              outdir='./weights',
-              formats=['peridigm', 'perilab', 'csv'])
+w = perifit.nodal_weights(coords, volumes, horizon)            # (N,)
+bonds, beta = perifit.bond_weights(coords, volumes, horizon)   # (Nb, 2), (Nb,)
 ```
 
-### Mesh quality diagnostics
-
-```python
-from perifit import compute_weights
-from perifit.quality import diagnose_weights, clean_mesh
-
-weights = compute_weights(coords, volumes, horizon=delta)
-
-# Diagnose: flag negative weights and statistical outliers
-diag = diagnose_weights(weights, threshold_sigma=2.0)
-print(diag.summary)
-
-# Clean: remove flagged nodes
-result = clean_mesh(coords, volumes, weights, threshold_sigma=2.0)
-print(f"Removed {result.original_n - result.cleaned_n} nodes")
-```
-
-### Command-line interface
+From the command line:
 
 ```bash
-# OSB-PD / LPS
-perifit --mesh nodes.csv --model osb
-
-# BB-PD (default)
-perifit --mesh nodes.csv --model bb
-
-# NOSB-PD (material-independent weights)
-perifit --mesh nodes.csv --model nosb
-
-# Specify horizon-to-spacing ratio (default is 3)
-perifit --mesh nodes.csv --m-ratio 4 --output csv,vtk
-
-# Provide the horizon explicitly instead
-perifit --mesh solid.exo --horizon 0.005 --output peridigm
-
-# Diagnose mesh quality after computing weights
-perifit --mesh cube.csv --diagnose
-
-# Clean mesh (remove negative/outlier weight nodes)
-perifit --mesh cube.csv --clean --threshold-sigma 2.0
-
-# Show all options
-perifit --help
+perifit --mesh part.csv --method nodal --output csv,vtk,peridigm
+perifit --mesh part.csv --method bond  --output csv,npz
 ```
 
----
+## Which method should I use?
 
-## Supported input formats
+| | nodal weights | bond weights |
+|---|---|---|
+| storage | N numbers | one per bond (≈ 25 N in 2-D, ≈ 130 N in 3-D at m = 4) |
+| accuracy | good | best, in every benchmark |
+| models | bond-based 1-D/2-D/3-D, state-based (LPS) 3-D | bond-based 1-D/2-D/3-D |
+| fracture | computed once for the intact geometry | broken bond = `β_b = 0`; the other weights stay valid |
+| horizon ratio m = δ/Δx | 2-D validated for m = 3–4 | robust for m = 3–5 |
+| solver input | per-node field (Peridigm, PeriLab, VTK) | per-bond list (CSV, NPZ) |
 
-| Extension | Format | Notes |
-|-----------|--------|-------|
-| `.csv`, `.txt`, `.dat` | Plain text | Columns: x, y, z[, volume] |
-| `.npy` | NumPy array | Shape (N, 3) or (N, 4) |
-| `.npz` | NumPy archive | Keys: `coords`[, `volumes`] |
-| `.vtk` | Legacy VTK ASCII | Unstructured or structured |
-| `.vtu` | VTK XML | Requires `pyvista` or `meshio` |
-| `.exo`, `.g` | Exodus II | Requires `netCDF4` or `meshio` |
-| `.msh` | Gmsh v2/v4 | Requires `meshio` |
-| `.inp` | Abaqus | Requires `meshio` |
+**Use bond weights when your solver can take a value per bond; use nodal
+weights for per-node solvers or when memory is tight.**
 
-## Supported output formats
+## Results
 
-| Format | Description |
-|--------|-------------|
-| `csv`  | `node_id, x, y, z, volume, weight` |
-| `dat`  | Space-delimited text |
-| `vtk`  | Legacy ASCII VTK for ParaView / VisIt |
-| `peridigm` | Text mesh + weight CSV + YAML input snippet |
-| `perilab`  | HDF5 mesh with `Nodal_Surface_Correction` field + YAML snippet |
+Three static problems with exact solutions, standard bond-based PD with
+horizon δ = 4 Δx and no partial-volume correction:
 
----
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/setups_dark.png">
+    <img src="docs/images/setups.png" width="100%" alt="Sketches of the three benchmarks: a 1-D bar under tension, a 2-D cantilever with parabolic end shear, and a 3-D circular cantilever">
+  </picture>
+</p>
 
-## Applying the weights in your solver
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/convergence_dark.png">
+    <img src="docs/images/convergence.png" width="100%" alt="Displacement error versus grid spacing for standard PD, nodal weights and bond weights in 1-D, 2-D and 3-D">
+  </picture>
+</p>
 
-The bond-averaged influence weight is
+| relative displacement error, finest grid | standard PD | nodal weights | bond weights |
+|---|---|---|---|
+| 1-D bar (Δx = 1/400) | 19 % — *grows* with refinement | 0.17 % | **0.11 %** |
+| 2-D cantilever (Δx = 1/200) | 7.0 % | 1.5 % | **0.35 %** |
+| 3-D circular cantilever (Δx = 1/50) | 41 % | 6.5 % | **5.9 %** |
+
+Standard PD stays inaccurate because of the boundary layer; both corrections
+restore convergence. Bond weights also remove the anisotropy of the square
+grid, which keeps them accurate for every horizon ratio:
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/horizon_ratio_dark.png">
+    <img src="docs/images/horizon_ratio.png" width="560" alt="Error of the 2-D cantilever at m = 3, 4, 5 for the three models">
+  </picture>
+</p>
+
+In 3-D the correction lives in a thin layer along the whole surface of the bar:
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/weights_3d_dark.png">
+    <img src="docs/images/weights_3d.png" width="100%" alt="Nodal weights and bond weights on a longitudinal section and a cross-section of the circular bar">
+  </picture>
+</p>
+
+Reproduce everything with `python examples/benchmarks.py` and `python docs/make_figures.py`.
+
+## Using the corrections in your solver
+
+A bond-based solver multiplies the micromodulus of bond `(i, j)`:
 
 ```
-w̄ᵢⱼ = (wᵢ + wⱼ) / 2
+c_ij = c * (w_i + w_j) / 2      # nodal weights
+c_ij = c * beta_ij              # bond weights
 ```
 
-Replace every occurrence of the unit influence function `ω(ξ) = 1`
-in your PD discretisation with `w̄ᵢⱼ`. The Peridigm and PeriLab
-output files include a YAML template showing exactly where to hook in
-the field.
+State-based (LPS) solvers apply `(w_i + w_j)/2` to every term that involves
+deformation; the weighted volume keeps its analytical full-horizon value.
+Do **not** combine the weights with a partial-volume (β) factor — they already
+correct the horizon quadrature.
 
----
+## Command line
 
-## Auto-inference of dx, volumes, and horizon
+| | `--method nodal` | `--method bond` |
+|---|---|---|
+| models | `--model osb` (default) or `bb` | `bb` |
+| outputs | `csv`, `dat`, `vtk`, `peridigm`, `perilab` | `csv` (`i,j,beta`), `npz` |
+| extras | `--diagnose`, `--clean` | — |
 
-The nodal spacing `dx` is always estimated automatically as the
-**median nearest-neighbour distance** (KD-tree, O(N log N)).
-This is used to:
+The horizon is `--horizon`, or `--m-ratio` × the median nearest-neighbour
+spacing. Planar meshes stored as `(x, y, 0)` need `--dim 2`. Try
+`perifit --demo --method bond`.
 
-1. Set nodal volumes to `dx³` when not provided.
-2. Compute the horizon as `delta = m_ratio × dx` when `--horizon` is not given.
-3. Check consistency when **both** `--horizon` and `--m-ratio` are supplied.
+## Upgrading from v2
 
-### Input modes
+- Choose the method explicitly: `surface_correction(..., method=...)`, `nodal_weights`, `bond_weights`.
+  `compute_weights`, `compute_weights_2d` and `compute_weights_1d` still work but are deprecated.
+- 1-D and 2-D nodal weights use a revised, validated calibration, and 3-D weights no
+  longer depend on round-off or on the length unit; values differ from v2 —
+  see [CHANGELOG.md](CHANGELOG.md). To reproduce the figures of the IJNME paper
+  exactly, install `perifit==2.0.1`.
+- The CLI requires `--method`.
 
-| `--horizon` | `--m-ratio` | Behaviour |
-|-------------|-------------|-----------|
-| not given   | not given   | horizon = 3 × dx (default m=3) |
-| not given   | given       | horizon = m_ratio × dx |
-| given       | not given   | horizon used directly |
-| given       | given       | horizon used; **warning** if inconsistent with m_ratio × dx |
+## Citing
 
----
+If you use perifit, please cite
+
+```bibtex
+@article{shojaei2026surface,
+  title   = {Surface and Boundary Corrections in Peridynamics Using Optimized Nodal Influence Weights},
+  author  = {Shojaei, Arman and Ongaro, Greta and Hermann, Alexander and Silling, Stewart A.
+             and Trovalusci, Patrizia and Cyron, Christian J.},
+  journal = {International Journal for Numerical Methods in Engineering},
+  year    = {2026},
+  doi     = {10.1002/nme.70385}
+}
+```
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — Arman Shojaei & Alexander Hermann, Institute of Material Systems
+Modeling, Helmholtz-Zentrum Hereon, Germany.

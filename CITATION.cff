@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use perifit, please cite the article below."
+title: "perifit: surface corrections for peridynamics"
+version: 3.0.0
+license: MIT
+repository-code: "https://github.com/Hereon-InstituteMS/perifit"
+authors:
+  - family-names: Shojaei
+    given-names: Arman
+    affiliation: Helmholtz-Zentrum Hereon
+  - family-names: Hermann
+    given-names: Alexander
+    affiliation: Helmholtz-Zentrum Hereon
+preferred-citation:
+  type: article
+  title: "Surface and Boundary Corrections in Peridynamics Using Optimized Nodal Influence Weights"
+  authors:
+    - family-names: Shojaei
+      given-names: Arman
+    - family-names: Ongaro
+      given-names: Greta
+    - family-names: Hermann
+      given-names: Alexander
+    - family-names: Silling
+      given-names: Stewart A.
+    - family-names: Trovalusci
+      given-names: Patrizia
+    - family-names: Cyron
+      given-names: Christian J.
+  journal: "International Journal for Numerical Methods in Engineering"
+  year: 2026
+  doi: "10.1002/nme.70385"
