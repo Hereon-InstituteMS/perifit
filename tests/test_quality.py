@@ -126,3 +126,21 @@ class TestCleanMesh:
                            np.ones(10), verbose=False)
         assert isinstance(result, CleaningResult)
         assert isinstance(result.diagnostics, WeightDiagnostics)
+
+    def test_recomputes_weights_with_horizon(self):
+        from perifit import nodal_weights
+        g = (np.arange(7) + 0.5) * 0.1
+        x, y, z = np.meshgrid(g, g, g, indexing="ij")
+        coords = np.column_stack([x.ravel(), y.ravel(), z.ravel()])
+        volumes = np.full(len(coords), 1e-3)
+        w = nodal_weights(coords, volumes, 0.3)
+        result = clean_mesh(coords, volumes, w, threshold_sigma=1.0, verbose=False, horizon=0.3)
+        assert result.cleaned_n < result.original_n
+        np.testing.assert_allclose(
+            result.weights, nodal_weights(result.coords, result.volumes, 0.3))
+
+    def test_warns_when_weights_not_recomputed(self):
+        weights = np.ones(30)
+        weights[0] = -1.0
+        with pytest.warns(RuntimeWarning, match="not recomputed"):
+            clean_mesh(np.random.randn(30, 3), np.ones(30), weights, verbose=False)
