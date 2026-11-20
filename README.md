@@ -151,6 +151,13 @@ deformation; the weighted volume keeps its analytical full-horizon value.
 Do **not** combine the weights with a partial-volume (β) factor — they already
 correct the horizon quadrature.
 
+The corrections belong to the reference configuration and are kept fixed during
+a run: crack faces that open later are not corrected, which is consistent with
+calibrating the critical stretch with the same weights. For several bodies or
+initial pre-cracks, pass precomputed `families` that exclude bonds across them.
+After removing nodes with `clean_mesh`, pass `horizon=` so that the weights are
+recomputed for the cleaned mesh (the neighbourhoods have changed).
+
 ## Command line
 
 | | `--method nodal` | `--method bond` |

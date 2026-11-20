@@ -1,6 +1,7 @@
 """Remove nodes with negative or outlying nodal weights from a mesh."""
 from __future__ import annotations
 from dataclasses import dataclass
+import warnings
 import numpy as np
 from .diagnostics import diagnose_weights, WeightDiagnostics
 
@@ -25,8 +26,17 @@ def clean_mesh(
     remove_negative: bool = True,
     remove_outliers: bool = True,
     verbose: bool = True,
+    horizon: float | None = None,
+    **weight_kwargs,
 ) -> CleaningResult:
-    """Remove flagged nodes, return cleaned arrays."""
+    """Remove flagged nodes, return cleaned arrays.
+
+    Removing nodes changes the neighbourhoods of the remaining nodes, so their
+    weights change too.  With ``horizon`` given, the nodal weights of the cleaned
+    mesh are recomputed (``weight_kwargs`` go to :func:`perifit.nodal_weights`);
+    without it the returned weights belong to the original mesh and a warning is
+    issued if nodes were removed.
+    """
     diag = diagnose_weights(weights, threshold_sigma=threshold_sigma,
                            flag_negative=remove_negative)
 
@@ -44,6 +54,14 @@ def clean_mesh(
     cleaned_coords = coords[keep]
     cleaned_volumes = volumes[keep]
     cleaned_weights = weights[keep]
+    if len(remove) and horizon is not None:
+        from ..api import nodal_weights
+        cleaned_weights = nodal_weights(cleaned_coords, cleaned_volumes, horizon, **weight_kwargs)
+    elif len(remove):
+        warnings.warn(
+            "clean_mesh: nodes were removed but the weights were not recomputed "
+            "(pass horizon=...); the returned weights belong to the original mesh.",
+            RuntimeWarning, stacklevel=2)
 
     if verbose:
         print(f"  Removed {len(remove)} of {len(weights)} nodes")
