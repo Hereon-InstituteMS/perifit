@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use perifit, please cite the article below."
 title: "perifit: surface corrections for peridynamics"
-version: 3.0.0
+version: 3.0.1
 license: MIT
 repository-code: "https://github.com/Hereon-InstituteMS/perifit"
 authors:

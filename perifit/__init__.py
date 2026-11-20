@@ -33,7 +33,7 @@ from __future__ import annotations
 import functools as _functools
 import warnings as _warnings
 
-__version__ = "3.0.0"
+__version__ = "3.0.1"
 
 # ---------------------------------------------------------------------------
 # Public API

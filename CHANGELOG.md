@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.1
+
+### Fixed
+- `clean_mesh(..., horizon=...)` recomputes the nodal weights of the cleaned mesh
+  (removing nodes changes the neighbourhoods); without `horizon` it warns that the
+  returned weights belong to the original mesh.
+
+### Docs
+- README: corrections stay fixed during a run; use `families` for several bodies or pre-cracks.
+
 ## 3.0.0
 
 Two surface corrections, chosen explicitly by the user, each with one
